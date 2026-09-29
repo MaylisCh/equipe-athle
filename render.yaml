@@ -12,8 +12,6 @@ services:
         value: 0.0.0.0
       - key: ATHLE_DATA_DIR
         value: /var/data
-      - key: ADMIN_SETUP_SECRET
-        sync: false
     disk:
       name: equipe-athle-data
       mountPath: /var/data

@@ -12,7 +12,6 @@ const DATA = process.env.ATHLE_DATA_DIR || join(ROOT, 'data');
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '127.0.0.1';
 const ORIGIN = process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-const SETUP_SECRET = process.env.ADMIN_SETUP_SECRET || '';
 const production = process.env.NODE_ENV === 'production';
 if (production && !ORIGIN.startsWith('https://')) throw new Error('APP_ORIGIN HTTPS obligatoire en production.');
 process.umask(0o077);
@@ -44,7 +43,6 @@ if (!db.prepare('SELECT id FROM users LIMIT 1').get()) {
  db.prepare("INSERT INTO users(id,email,name,last_name,password,role) VALUES(?,?,?,?,?,?)").run(randomUUID(),'maylis','Maylis','Chancerelle','','admin');
 }
 const hasUsers = () => !!db.prepare("SELECT id FROM users WHERE role='admin' AND password!='' LIMIT 1").get();
-if (production && !hasUsers() && !SETUP_SECRET) throw new Error('ADMIN_SETUP_SECRET obligatoire pour activer le premier administrateur en production.');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const derive = promisify(scrypt);
 async function passwordHash(password, salt=randomBytes(16).toString('hex')) {
@@ -151,9 +149,9 @@ async function handle(req,res) {
   if (!['GET','POST','PUT','DELETE'].includes(req.method)) fail('Méthode non autorisée.',405);
   const ctx=context(req);
   if(req.method==='GET' && path==='/api/auth') {
-   const setupAllowed=!hasUsers()&&(!production||!!SETUP_SECRET);
+   const setupAllowed=!hasUsers();
    const pending=setupAllowed?db.prepare("SELECT name,last_name AS lastName,email FROM users WHERE role='admin' AND password='' LIMIT 1").get():null;
-   reply({setup:!!pending,pending,setupCodeRequired:!!pending&&production,user:ctx?publicUser(ctx):null,csrf:ctx?.csrf});return;
+   reply({setup:!!pending,pending,setupCodeRequired:false,user:ctx?publicUser(ctx):null,csrf:ctx?.csrf});return;
   }
   let body={};
   if(req.method!=='GET') {
@@ -178,9 +176,7 @@ async function handle(req,res) {
    const user=atomic(()=>{
     let role='athlete';
     if(path==='/api/setup') {
-     const localSetup=!production&&['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
-     const secretSetup=production&&SETUP_SECRET&&text(body.setupCode||'','Code d’activation',256,true)===SETUP_SECRET;
-     if(hasUsers()||(!localSetup&&!secretSetup)) fail('Initialisation indisponible.',403);
+     if(hasUsers()) fail('Initialisation indisponible.',403);
      role='admin';
     } else if(body.coach) {
      const invitation=db.prepare('SELECT * FROM invitations WHERE token=? AND used=0 AND expires>?').get(hash(text(body.invite,'Invitation',256,true)),Date.now());

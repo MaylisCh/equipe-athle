@@ -9,7 +9,7 @@ const fullDate = key => fromKey(key).toLocaleDateString('fr-FR',{weekday:'long',
 const shortDate = key => fromKey(key).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
 const today = () => dateKey(new Date());
 let selectedDate=today(),month=fromKey(selectedDate); month.setDate(1);
-let user=null,accessToken=null,csrf=null,setup=false,setupCodeRequired=false,pendingAccount=null,state=null,pollBusy=false,editSubmit=null,toastTimer,pendingRender=false;
+let user=null,accessToken=null,csrf=null,setup=false,pendingAccount=null,state=null,pollBusy=false,editSubmit=null,toastTimer,pendingRender=false;
 let inviteToken = new URLSearchParams(location.search).get('invitation') || '';
 if(inviteToken)history.replaceState(null,'',location.pathname+'#inscription');
 const coach = () => user?.role==='coach';
@@ -36,14 +36,13 @@ function authPage() {
  ${(register||initial)?`<div class="form-grid"><label>Prénom<input name="name" value="${initial?esc(pendingAccount?.name):''}" autocomplete="given-name" maxlength="80" required></label><label>Nom<input name="lastName" value="${initial?esc(pendingAccount?.lastName):''}" autocomplete="family-name" maxlength="80"></label></div><label>Téléphone (facultatif)<input name="phone" type="tel" autocomplete="tel" maxlength="40"></label><p class="help">Votre nom, prénom et téléphone seront visibles dans l’annuaire privé du groupe.</p>`:''}
  <label>Adresse e-mail ou identifiant<input name="email" value="${initial?esc(pendingAccount?.email):''}" autocomplete="username" maxlength="180" required></label>
  <label>Mot de passe<input name="password" type="password" autocomplete="${register||initial?'new-password':'current-password'}" minlength="${register||initial?12:1}" maxlength="256" required>${register||initial?'<small>12 caractères minimum.</small>':''}</label>
- ${initial&&setupCodeRequired?'<label>Code d’activation admin<input name="setupCode" type="password" autocomplete="one-time-code" maxlength="256" required><small>Code secret défini dans l’hébergement Render.</small></label>':''}
  ${register?`<label class="checkbox"><input type="checkbox" name="coach" ${inviteToken?'checked':''}> Je suis coach</label><div id="coach-invitation" ${inviteToken?'':'hidden'}><label>Code d’invitation coach<input name="invite" value="${esc(inviteToken)}" ${inviteToken?'required':'disabled'} autocomplete="off"></label><p class="help">Un profil coach nécessite l’invitation de Maylis, administratrice du groupe.</p></div>`:''}
  <p id="auth-error" role="alert" class="error"></p><button type="submit">${initial?'Activer mon compte admin':register?'Créer mon compte':'Se connecter'}</button></form><p class="help">${register||initial?'<a href="#connexion">Déjà membre ? Connexion</a>':'Nouveau membre ? <a href="#inscription">Inscription</a>'}</p>${setup&&!initial?'<p class="help"><a href="#initialisation">Maylis : activer mon compte admin</a></p>':''}</section>`;
  if(register)$('#auth-form').elements.coach.onchange=event=>{const enabled=event.target.checked;$('#coach-invitation').hidden=!enabled;$('#auth-form').elements.invite.disabled=!enabled;$('#auth-form').elements.invite.required=enabled;};
  $('#auth-form').onsubmit=async event=>{
   event.preventDefault();const form=event.currentTarget,fields=new FormData(form),button=form.querySelector('button[type=submit]');button.disabled=true;$('#auth-error').textContent='';
   try {
-   const result=await api(initial?'/setup':register?'/register':'/login','POST',{name:fields.get('name'),lastName:fields.get('lastName'),phone:fields.get('phone'),email:fields.get('email'),password:fields.get('password'),setupCode:fields.get('setupCode'),invite:fields.get('invite'),coach:fields.get('coach')==='on'});
+   const result=await api(initial?'/setup':register?'/register':'/login','POST',{name:fields.get('name'),lastName:fields.get('lastName'),phone:fields.get('phone'),email:fields.get('email'),password:fields.get('password'),invite:fields.get('invite'),coach:fields.get('coach')==='on'});
    user=result.user;csrf=result.csrf;accessToken=result.accessToken;setup=false;inviteToken='';state=await api('/state');history.replaceState(null,'','#entrainements');render();
   } catch(e){$('#auth-error').textContent=e.message;}finally{button.disabled=false;}
  };
@@ -210,4 +209,4 @@ async function refresh() {
  finally{pollBusy=false;}
 }
 setInterval(refresh,10000);document.addEventListener('visibilitychange',refresh);
-try{const auth=await api('/auth');setup=auth.setup;setupCodeRequired=auth.setupCodeRequired;pendingAccount=auth.pending;render();}catch(e){$('#main').innerHTML=`<section class="card"><h1>Le site n’est pas démarré.</h1><p>Lancez « Démarrer le site.command », puis ouvrez <a href="http://localhost:8787">localhost:8787</a>.</p><p class="error">${esc(e.message)}</p></section>`;}
+try{const auth=await api('/auth');setup=auth.setup;pendingAccount=auth.pending;render();}catch(e){$('#main').innerHTML=`<section class="card"><h1>Le site n’est pas démarré.</h1><p>Lancez « Démarrer le site.command », puis ouvrez <a href="http://localhost:8787">localhost:8787</a>.</p><p class="error">${esc(e.message)}</p></section>`;}

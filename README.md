@@ -76,9 +76,8 @@ Pour obtenir un site internet classique, le chemin recommandé est :
 1. Mettre ce dossier dans un dépôt GitHub privé.
 2. Connecter ce dépôt à Render avec le fichier `render.yaml`.
 3. Créer le service depuis le Blueprint Render. Le disque persistant `/var/data` est défini dans `render.yaml`; il conserve la base SQLite quand le site redémarre.
-4. Dans Render, renseigner `ADMIN_SETUP_SECRET` avec un code temporaire fort. Ce code sert seulement à activer le premier admin Maylis sur le site hébergé.
-5. Ouvrir l’URL Render, cliquer sur **Maylis : activer mon compte admin**, choisir le mot de passe admin et saisir le code `ADMIN_SETUP_SECRET`.
-6. Une fois le premier admin activé, les inscriptions athlètes et les invitations coach se gèrent depuis le site.
+4. Ouvrir l’URL Render et cliquer sur **Maylis : activer mon compte admin**. Choisir l’identifiant et le mot de passe du compte Maylis. La première personne qui fait cette activation obtient le rôle admin.
+5. Une fois le premier admin activé, les inscriptions athlètes et les invitations coach se gèrent depuis le site.
 
 Render fournit automatiquement `RENDER_EXTERNAL_URL`, utilisé comme adresse HTTPS du site si `APP_ORIGIN` n’est pas défini. Pour un autre hébergeur Node, déployer **une seule instance** avec :
 
@@ -87,7 +86,6 @@ Render fournit automatiquement `RENDER_EXTERNAL_URL`, utilisé comme adresse HTT
 - `HOST=0.0.0.0`
 - `PORT` selon l’hébergeur
 - `ATHLE_DATA_DIR` vers un dossier persistant privé
-- `ADMIN_SETUP_SECRET` tant que le premier admin n’est pas activé
 
 Placer le service derrière HTTPS, garder une seule instance active avec la base SQLite, configurer les limites de requêtes et sauvegarder le disque persistant. Le mot de passe oublié n’a pas encore de récupération par e-mail ; cela dépendra de l’hébergement et d’un service d’envoi choisi.
 
