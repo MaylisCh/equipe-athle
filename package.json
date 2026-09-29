@@ -1,0 +1,16 @@
+{
+  "name": "equipe-athle",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.16"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test.mjs",
+    "test:browser": "node browser-test.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}

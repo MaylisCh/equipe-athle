@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: equipe-athle
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: ATHLE_DATA_DIR
+        value: /var/data
+      - key: ADMIN_SETUP_SECRET
+        sync: false
+    disk:
+      name: equipe-athle-data
+      mountPath: /var/data
+      sizeGB: 1
