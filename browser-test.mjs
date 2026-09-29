@@ -27,12 +27,10 @@ try {
  await expect(admin.locator('[name=name]')).toHaveValue('Maylis');await expect(admin.locator('[name=lastName]')).toHaveValue('Chancerelle');
  await admin.getByRole('button',{name:'Activer mon compte admin'}).click();
  await expect(admin.locator('#daily-sessions')).toBeVisible();await expect(admin.getByRole('button',{name:'+ Séance',exact:true})).toHaveCount(0);
- await nav(admin,'groupe');await admin.getByRole('button',{name:'+ Inviter un coach'}).click();await admin.getByRole('button',{name:'Générer le lien'}).click();
- const invite=await admin.locator('#invite-link').inputValue();await admin.getByRole('button',{name:'Fermer',exact:true}).click();
- const coach=await newPage();await coach.goto(invite);await expect(coach.locator('[name=coach]')).toBeChecked();
+ const coach=await newPage();await coach.goto(origin+'/#inscription');await coach.locator('[name=coach]').check();
  await coach.locator('[name=name]').fill('Coach Test');await coach.locator('[name=lastName]').fill('Club');await coach.locator('[name=email]').fill('coach-test');await coach.getByRole('button',{name:'Créer mon compte'}).click();await expect(coach.getByRole('button',{name:'+ Séance',exact:true})).toBeVisible();
  const athlete=await newPage();await athlete.goto(origin+'/#inscription');await athlete.locator('[name=name]').fill('Camille');await athlete.locator('[name=lastName]').fill('Martin');await athlete.locator('[name=phone]').fill('0600000000');await athlete.locator('[name=email]').fill('camille');
- await expect(athlete.locator('[name=invite]')).toBeHidden();await athlete.getByRole('button',{name:'Créer mon compte'}).click();await expect(athlete.locator('#daily-sessions')).toBeVisible();
+ await expect(athlete.locator('[name=coach]')).not.toBeChecked();await athlete.getByRole('button',{name:'Créer mon compte'}).click();await expect(athlete.locator('#daily-sessions')).toBeVisible();
  await expect(athlete.locator('.variant')).toBeVisible();await expect(athlete.getByRole('button',{name:/V2|Version 2/})).toHaveCount(0);await expect(athlete.getByRole('button',{name:/Modifier|Séance/})).toHaveCount(0);
  for(const [p,time] of [[athlete,'24'],[coach,'28'],[admin,'30']]){
   await nav(p,'chronos');await p.getByRole('textbox',{name:'Chrono 200 mètres',exact:true}).fill(time);await p.getByRole('button',{name:'Enregistrer mes chronos'}).click();await expect(p.locator('#results')).toContainText(`${Number(time)/.8}`.replace('.',','));
@@ -42,12 +40,14 @@ try {
  const editor=coach.locator('#editor');await editor.locator('[name=title]').fill('Musculation du matin');await editor.locator('[name=date]').fill('2026-10-02');await editor.locator('[name=slot]').selectOption('matin');await editor.locator('[name=type]').selectOption('strength');await editor.locator('[name=warmup]').fill('Mobilité');await editor.locator('[name=workout]').fill('Travail de force');await editor.getByRole('button',{name:'Enregistrer pour l’équipe'}).click();await expect(editor).not.toBeVisible();
  await coach.getByRole('button',{name:'+ Séance',exact:true}).click();await editor.locator('[name=title]').fill('Technique après-midi');await editor.locator('[name=slot]').selectOption('apres-midi');await editor.locator('[name=workout]').fill('Gammes et accélérations');await editor.locator('[name=v2]').fill('Consigne alternative');await editor.getByRole('button',{name:'Enregistrer pour l’équipe'}).click();
  await expect(coach.locator('#daily-sessions .session-card')).toHaveCount(2);await expect(coach.locator('.calendar-day[data-date="2026-10-02"] .event-label')).toHaveCount(2);
+ await athlete.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
  await nav(athlete,'entrainements');await athlete.getByRole('button',{name:'Mois suivant'}).click();await athlete.locator('.calendar-day[data-date="2026-10-02"]').click();
  await expect(athlete.locator('#daily-sessions')).toContainText('Musculation du matin',{timeout:20000});await expect(athlete.locator('#daily-sessions .session-card')).toHaveCount(2);
  await coach.locator('#daily-sessions .session-card').filter({hasText:'Musculation du matin'}).getByRole('button',{name:'Modifier / déplacer'}).click();await editor.locator('[name=date]').fill('2026-10-04');await editor.getByRole('button',{name:'Enregistrer pour l’équipe'}).click();
  await expect(coach.locator('.calendar-day[data-date="2026-10-02"] .event-label')).toHaveCount(1);await expect(coach.locator('.calendar-day[data-date="2026-10-04"] .event-label')).toHaveCount(1);
  await nav(coach,'bibliotheque');await coach.getByRole('button',{name:'+ Ajouter'}).click();await editor.locator('[name=title]').fill('Test acronyme');await editor.locator('[name=body]').fill('<script>alert(1)</script> : texte simple');await editor.getByRole('button',{name:'Enregistrer pour l’équipe'}).click();await expect(coach.locator('#library-content')).toContainText('<script>alert(1)</script>');
  await nav(coach,'infos');await expect(coach.locator('.info-card')).toHaveCount(12);await coach.locator('.info-card').first().getByRole('button',{name:'Modifier',exact:true}).click();await editor.locator('[name=title]').fill('Les stages — information actualisée');await editor.getByRole('button',{name:'Enregistrer pour l’équipe'}).click();
+ await athlete.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
  await nav(athlete,'infos');await expect(athlete.locator('.info-card').first()).toContainText('Les stages — information actualisée',{timeout:20000});
  await nav(admin,'groupe');await admin.locator('#member-search').fill('Camille');await expect(admin.locator('#member-rows')).toContainText('0600000000');
  await nav(admin,'reglages');admin.on('dialog',dialog=>dialog.accept());

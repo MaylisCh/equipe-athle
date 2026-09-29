@@ -4,7 +4,6 @@ import { library, info } from '../../content.mjs';
 const schema = `
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL, profile TEXT NOT NULL DEFAULT '{}', profile_version INTEGER NOT NULL DEFAULT 1, last_name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', account_version INTEGER NOT NULL DEFAULT 1, previous_role TEXT NOT NULL DEFAULT 'athlete');
 CREATE TABLE IF NOT EXISTS auth (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS invitations (token TEXT PRIMARY KEY, expires INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS records (collection TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, archived INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(collection,id));
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS role_events (id INTEGER PRIMARY KEY, actor TEXT NOT NULL, member TEXT NOT NULL, previous_role TEXT NOT NULL, next_role TEXT NOT NULL, created INTEGER NOT NULL);
@@ -119,15 +118,9 @@ async function handle(request,db) {
    return json(await session(db,{...reserved,email,name,last_name:lastName,phone}),201);
   }
   if(await stmt(db,'SELECT id FROM users WHERE email=?',email).first())error('Cet identifiant est déjà utilisé.',409);
-  let role='athlete';
-  if(body.coach){
-   const invite=await stmt(db,'SELECT * FROM invitations WHERE token=? AND used=0 AND expires>?',await digest(str(body.invite,'Invitation',256,true)),Date.now()).first();
-   if(!invite)error('Invitation invalide, déjà utilisée ou expirée.',403);
-   role='coach';
-  }
+  const role=body.coach?'coach':'athlete';
   const user={id:crypto.randomUUID(),email,name,last_name:lastName,phone,role,account_version:1};
   const actions=[stmt(db,'INSERT INTO users(id,email,name,role,last_name,phone) VALUES(?,?,?,?,?,?)',user.id,email,name,role,lastName,phone),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")];
-  if(role==='coach')actions.push(stmt(db,'UPDATE invitations SET used=1 WHERE token=?',await digest(body.invite.trim())));
   await db.batch(actions);
   return json(await session(db,user),201);
  }
@@ -164,12 +157,6 @@ async function handle(request,db) {
   if(body.confirm!==true||str(body.identifier,'Identifiant',180,true).toLowerCase()!==ctx.email)error('Confirmez la suppression avec votre identifiant.',403);
   if(ctx.role==='admin'&&(await db.prepare("SELECT COUNT(*) AS count FROM users WHERE role='admin'").first()).count<=1)error('Nommez un autre administrateur avant de supprimer votre profil.',409);
   await db.batch([stmt(db,'DELETE FROM auth WHERE user_id=?',ctx.id),stmt(db,'DELETE FROM users WHERE id=?',ctx.id),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")]);return json({ok:true});
- }
- if(method==='POST'&&path==='/api/invitations'){
-  if(ctx.role!=='admin')error('Seul un administrateur peut inviter un coach.',403);
-  const token=[...crypto.getRandomValues(new Uint8Array(24))].map(x=>x.toString(16).padStart(2,'0')).join('');
-  await stmt(db,'INSERT INTO invitations(token,expires) VALUES(?,?)',await digest(token),Date.now()+7*86400000).run();
-  return json({token,expiresDays:7});
  }
  const roleMatch=path.match(/^\/api\/members\/([^/]+)\/admin$/);
  if(method==='PUT'&&roleMatch){

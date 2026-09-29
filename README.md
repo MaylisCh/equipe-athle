@@ -14,9 +14,8 @@ Il faut maintenant utiliser l’adresse du serveur, et non ouvrir `index.html` p
 - Chaque ouverture ou rechargement de la page demande une connexion par identifiant. La navigation interne garde la session active.
 - Un compte ne demande pas de mot de passe. Toute personne qui connaît l’identifiant peut ouvrir ce profil ; les droits du profil s’appliquent également.
 - Un compte coach possède ses propres chronos, exactement comme un athlète. Aucun endpoint ne permet de lire ou de modifier les chronos d’un autre compte.
-- Les athlètes s’inscrivent librement depuis **Inscription**, sans invitation.
-- Un administrateur crée une invitation coach depuis **Le groupe**, **Infos du groupe** ou **Réglages** et transmet personnellement son lien. Les invitations sont à usage unique et expirent après 7 jours.
-- Le formulaire **Inscription** propose la case **Je suis coach**. Pour obtenir ces droits, il faut une invitation coach. Un athlète ne peut pas s’accorder les droits d’administration.
+- Chaque membre s’inscrit librement depuis **Inscription**, sans invitation. Le formulaire propose la case **Je suis coach** : si elle est cochée, le compte peut modifier les contenus du groupe. Ne partagez le lien du site qu’avec l’équipe.
+- Un membre ne peut pas s’accorder les droits d’administration : un admin doit le nommer depuis **Réglages**.
 
 ## Entraînements
 
@@ -49,7 +48,7 @@ Après connexion, le site affiche toujours le planning. Les boutons de navigatio
 
 **Réglages** permet de modifier uniquement ses propres prénom, nom et téléphone et de consulter son rôle admin/coach/athlète. Le rôle n’est pas modifiable depuis le formulaire personnel.
 
-Un **admin** gère les invitations coach et les droits d’administration ; il n’édite pas les séances. Un **coach** édite les contenus communs. Chaque profil, admin compris, a ses propres chronos.
+Un **admin** gère les droits d’administration ; il n’édite pas les séances. Un **coach** édite les contenus communs. Chaque profil, admin compris, a ses propres chronos.
 
 Dans **Réglages → Administrateurs du site**, un admin peut nommer un membre déjà inscrit, puis retirer ses propres droits pour transmettre le site. On ne peut jamais retirer le dernier admin. Les actions sont journalisées côté serveur et prennent effet immédiatement. Un membre qui perd ses droits admin retrouve son rôle précédent (coach ou athlète). Lorsqu’un coach est nommé admin, son rôle admin remplace son rôle coach.
 
@@ -87,7 +86,7 @@ Les fichiers exposés sur le site sont construits dans `dist/`. La base, les sou
 
 ## Vérifications techniques
 
-`npm test` vérifie le serveur local Node, les comptes par identifiant, les droits de rôle, les invitations, les séances et les calculs. Il utilise une base temporaire distincte ; l’API Cloudflare utilise D1.
+`npm test` vérifie le serveur local Node, les comptes par identifiant, les droits de rôle, les séances et les calculs. Il utilise une base temporaire distincte ; l’API Cloudflare utilise D1.
 
 `npm run test:browser` vérifie les parcours dans Chromium avec trois comptes temporaires, les droits admin, les séances multiples, la mise à jour entre onglets, l’annuaire et l’affichage mobile. Installer au préalable les dépendances de développement avec `npm install`, puis le navigateur avec `npx playwright install chromium`. Les captures de vérification sont dans `test-results`.
 

@@ -31,7 +31,7 @@ test('Activation du premier admin en production par identifiant',async t=>{
  assert.equal((await response.json()).user.role,'admin');
 });
 
-test('Comptes indépendants, droits, invitations, éditions, échanges, conflits et persistance',async t=>{
+test('Comptes indépendants, droits, éditions, échanges, conflits et persistance',async t=>{
  const data=mkdtempSync(join(tmpdir(),'athle-test-'));
  const port=18787,origin=`http://localhost:${port}`;
  let processHandle,logs='';
@@ -51,17 +51,12 @@ test('Comptes indépendants, droits, invitations, éditions, échanges, conflits
  let result=await request('/state');assert.equal(result.status,401);
  const owner=(await request('/setup','POST',{...credentials('maylis'),name:'Maylis',lastName:'Chancerelle'})).json;assert.equal(owner.user.role,'admin');
  assert.equal((await request('/setup','POST',credentials('intrus'))).status,403);
- let token=(await request('/invitations','POST',{},owner)).json.token;
- const admin=(await request('/register','POST',{...credentials('coach'),invite:token,coach:true})).json;assert.equal(admin.user.role,'coach');
- assert.equal((await request('/register','POST',{...credentials('pirate'),invite:token,coach:true})).status,403);
- assert.equal((await request('/register','POST',{...credentials('pirate'),invite:'invented-code',coach:true})).status,403);
+ const admin=(await request('/register','POST',{...credentials('coach'),coach:true})).json;assert.equal(admin.user.role,'coach');
  const alice=(await request('/register','POST',{...credentials('alice'),coach:false,role:'admin'})).json;
  assert.equal(alice.user.role,'athlete');
  const bob=(await request('/register','POST',credentials('bob'))).json;
- token=(await request('/invitations','POST',{coach:true},owner)).json.token;
- const coach2=(await request('/register','POST',{...credentials('coach2'),invite:token,coach:true})).json;assert.equal(coach2.user.role,'coach');
- assert.equal((await request('/invitations','POST',{},alice)).status,403);
- assert.equal((await request('/invitations','POST',{},admin)).status,403);
+ const coach2=(await request('/register','POST',{...credentials('coach2'),coach:true})).json;assert.equal(coach2.user.role,'coach');
+ assert.equal((await request('/invitations','POST',{},admin)).status,404);
  let original=(await request('/state','GET',undefined,admin)).json;
  assert.equal(original.sessions.length,101);assert.equal(original.info.length,12);assert.equal(original.library.length,11);
  assert.equal(original.sessions.find(s=>s.date==='2026-09-29').v2.length>0,true);
@@ -105,8 +100,8 @@ test('Comptes indépendants, droits, invitations, éditions, échanges, conflits
   const state=(await request('/state','GET',undefined,bob)).json;
   assert.equal(state[collection].find(s=>s.id===created.id).body,'Texte modifié');
  }
- const badOrigin=await fetch(origin+'/api/invitations',{method:'POST',headers:{Origin:'https://evil.example','Content-Type':'application/json',Authorization:`Bearer ${admin.accessToken}`,'X-CSRF-Token':admin.csrf},body:'{}'});assert.equal(badOrigin.status,403);
- const noCSRF=await fetch(origin+'/api/invitations',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json',Authorization:`Bearer ${admin.accessToken}`},body:'{}'});assert.equal(noCSRF.status,403);
+ const badOrigin=await fetch(origin+'/api/sessions',{method:'POST',headers:{Origin:'https://evil.example','Content-Type':'application/json',Authorization:`Bearer ${admin.accessToken}`,'X-CSRF-Token':admin.csrf},body:'{}'});assert.equal(badOrigin.status,403);
+ const noCSRF=await fetch(origin+'/api/sessions',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json',Authorization:`Bearer ${admin.accessToken}`},body:'{}'});assert.equal(noCSRF.status,403);
  assert.equal((await fetch(origin+'/data/athle.sqlite')).status,404);assert.equal((await fetch(origin+'/content.mjs')).status,404);assert.equal((await fetch(origin+'/seed.json')).status,404);
  assert.equal((await request('/auth')).json.user,null,'Une nouvelle ouverture sans jeton doit demander la connexion.');
  await request('/logout','POST',{},alice);assert.equal((await request('/state','GET',undefined,alice)).status,401);
@@ -118,9 +113,8 @@ test('Comptes indépendants, droits, invitations, éditions, échanges, conflits
  assert.equal((await request(bobPath,'PUT',{action:'grant-admin',expectedRole:'athlete'},admin)).status,403);
  assert.equal((await request(ownPath,'PUT',{action:'revoke-admin',expectedRole:'admin'},owner)).status,409,'Impossible de retirer le dernier admin');
  assert.equal((await request(bobPath,'PUT',{action:'grant-admin',expectedRole:'athlete'},owner)).status,200);
- assert.equal((await request('/invitations','POST',{},bob)).status,200,'Le nouvel admin peut inviter un coach sans changer de compte');
  assert.equal((await request(ownPath,'PUT',{action:'revoke-admin',expectedRole:'admin'},owner)).status,200);
- assert.equal((await request('/invitations','POST',{},owner)).status,403,'Les anciens droits cessent immédiatement');
+ assert.equal((await request(bobPath,'PUT',{action:'revoke-admin',expectedRole:'admin'},owner)).status,403,'Les anciens droits cessent immédiatement');
  assert.equal((await request(bobPath,'PUT',{action:'revoke-admin',expectedRole:'admin'},bob)).status,409);
  const coachPath='/members/'+admin.user.id+'/admin';
  assert.equal((await request(coachPath,'PUT',{action:'grant-admin',expectedRole:'coach'},bob)).status,200);

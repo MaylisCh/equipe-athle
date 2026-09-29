@@ -21,7 +21,6 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
  password TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin','coach','athlete')), profile TEXT NOT NULL DEFAULT '{}', profile_version INTEGER NOT NULL DEFAULT 1,
  last_name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', account_version INTEGER NOT NULL DEFAULT 1, previous_role TEXT NOT NULL DEFAULT 'athlete');
  CREATE TABLE IF NOT EXISTS auth (token TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), csrf TEXT NOT NULL, expires INTEGER NOT NULL);
- CREATE TABLE IF NOT EXISTS invitations (token TEXT PRIMARY KEY, expires INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0, role TEXT NOT NULL DEFAULT 'athlete');
  CREATE TABLE IF NOT EXISTS records (collection TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, archived INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(collection,id));
  CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS role_events (id INTEGER PRIMARY KEY, actor TEXT NOT NULL, member TEXT NOT NULL, previous_role TEXT NOT NULL, next_role TEXT NOT NULL, created INTEGER NOT NULL);
@@ -166,13 +165,7 @@ async function handle(req,res) {
     if(path==='/api/setup') {
      if(hasUsers()) fail('Initialisation indisponible.',403);
      role='admin';
-    } else if(body.coach) {
-     const invitation=db.prepare('SELECT * FROM invitations WHERE token=? AND used=0 AND expires>?').get(hash(text(body.invite,'Invitation',256,true)),Date.now());
-     if(!invitation)fail('Invitation invalide, déjà utilisée ou expirée.',403);
-     if(body.coach && invitation.role!=='coach')fail('Un profil coach nécessite une invitation coach.',403);
-     role=body.coach?'coach':'athlete';
-     db.prepare('UPDATE invitations SET used=1 WHERE token=?').run(invitation.token);
-    }
+    } else if(body.coach) role='coach';
     if(path==='/api/setup') {
      const reserved=db.prepare("SELECT * FROM users WHERE role='admin' AND password='' LIMIT 1").get();
      if(!reserved)fail('Aucun compte administrateur en attente.',403);
@@ -233,12 +226,6 @@ async function handle(req,res) {
     db.prepare('DELETE FROM auth WHERE user_id=?').run(ctx.id);
     db.prepare('DELETE FROM users WHERE id=?').run(ctx.id);bump();
    });reply({ok:true});return;
-  }
-  if(req.method==='POST' && path==='/api/invitations') {
-   if(ctx.role!=='admin')fail('Seul un administrateur peut inviter un coach.',403);
-   const token=randomBytes(24).toString('hex');
-   db.prepare('INSERT INTO invitations(token,expires,role) VALUES(?,?,?)').run(hash(token),Date.now()+7*86400000,'coach');
-   reply({token,expiresDays:7});return;
   }
   const roleMatch=path.match(/^\/api\/members\/([^/]+)\/admin$/);
   if(req.method==='PUT' && roleMatch) {
