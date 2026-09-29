@@ -1,4 +1,4 @@
-import seed from '../../seed.json' with { type: 'json' };
+import seed from '../../seed.json';
 import { library, info } from '../../content.mjs';
 
 const schema = `
@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS records (collection TEXT NOT NULL, id TEXT NOT NULL, 
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS role_events (id INTEGER PRIMARY KEY, actor TEXT NOT NULL, member TEXT NOT NULL, previous_role TEXT NOT NULL, next_role TEXT NOT NULL, created INTEGER NOT NULL);
 INSERT OR IGNORE INTO meta VALUES ('revision',1);
-INSERT OR IGNORE INTO meta VALUES ('setup_complete',0);`;
+INSERT OR IGNORE INTO meta VALUES ('setup_complete',0);
+INSERT OR IGNORE INTO meta VALUES ('last_session_cleanup',0);`;
 
 const json = (value, status=200) => Response.json(value, {status, headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const error = (message,status=400) => {throw Object.assign(new Error(message),{status});};
@@ -35,6 +36,15 @@ async function initialize(db) {
   await db.prepare("INSERT OR IGNORE INTO meta VALUES ('seeded',1)").run();
  })();
  try{await initialization;}catch(e){initialization=null;throw e;}
+}
+async function cleanupOldSessions(db) {
+ const now=Date.now();
+ const last=await db.prepare("SELECT value FROM meta WHERE key='last_session_cleanup'").first();
+ if(last && now-last.value<86400000)return;
+ const cutoff=new Date(now-90*86400000).toISOString().slice(0,10);
+ const removed=await stmt(db,"DELETE FROM records WHERE collection='sessions' AND json_extract(data,'$.date') < ?",cutoff).run();
+ await stmt(db,"UPDATE meta SET value=? WHERE key='last_session_cleanup'",now).run();
+ if(removed.meta.changes)await db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();
 }
 const versionCheck=(actual,wanted)=>{if(actual!==wanted)error('Cet élément a été modifié ailleurs. Rechargez la page pour voir la dernière version.',409);};
 const TYPES=['speed','strength','vo2','endurance','hills','competition','group','rest'];
@@ -211,6 +221,7 @@ export async function onRequest({request,env}) {
  try{
   if(!env.DB)error('Base de données Cloudflare non configurée.',503);
   await initialize(env.DB);
+  await cleanupOldSessions(env.DB);
   return await handle(request,env.DB);
  }catch(e){if(!e.status)console.error(e);return json({error:e.status?e.message:'Erreur du serveur.'},e.status||500);}
 }

@@ -23,6 +23,7 @@ Il faut maintenant utiliser l’adresse du serveur, et non ouvrir `index.html` p
 - Planning daté : les journées importées vont du 28 septembre 2026 au 23 janvier 2027. Une journée vide signifie « aucune séance renseignée », pas nécessairement repos.
 - La vue initiale sélectionne la date courante. Le calendrier et les boutons de semaine permettent de sélectionner une autre date.
 - Le calendrier peut avancer sans limite, donc jusqu’en août 2028 et au-delà. Aucune séance n’est inventée : les dates sans contenu restent vides et le coach peut y ajouter des séances.
+- Sur le site Cloudflare, un nettoyage vérifié au plus une fois par jour supprime définitivement les séances vieilles de plus de 90 jours (environ trois mois). Les séances futures, les profils, les chronos, la bibliothèque et les infos du groupe ne sont pas touchés. Il s’exécute lors d’un accès au site, sans tâche planifiée séparée.
 - Plusieurs séances peuvent exister le même jour : matin, après-midi, soir ou créneau non précisé.
 - Un jour importé comme repos peut recevoir une séance. Lorsqu’une séance active existe, la carte « Repos » initiale est masquée sans être supprimée.
 - Le coach peut créer, modifier, déplacer ou archiver une séance. Changer sa date suffit à déplacer son contenu. L’option « Échanger » permute les dates et créneaux de deux séances en une seule transaction.
