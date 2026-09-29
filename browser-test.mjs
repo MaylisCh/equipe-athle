@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 const origin='http://localhost:18788', data=mkdtempSync(join(tmpdir(),'athle-browser-'));
 const server=spawn(process.execPath,['server.mjs'],{cwd:import.meta.dirname,env:{...process.env,ATHLE_DATA_DIR:data,PORT:'18788',APP_ORIGIN:origin,HOST:'127.0.0.1'},stdio:['ignore','pipe','pipe']});
 let log='',browser;server.stdout.on('data',b=>log+=b);server.stderr.on('data',b=>log+=b);
-const errors=[],password='Compte de test local 2026!';
+const errors=[];
 mkdirSync(join(import.meta.dirname,'test-results'),{recursive:true});
 try {
  for(let i=0;i<100;i++){try{await fetch(origin+'/api/auth');break;}catch{}if(i===99)throw new Error(log);await delay(50);}
@@ -25,13 +25,13 @@ try {
  const admin=await newPage();await admin.goto(origin);
  await admin.getByRole('link',{name:'Maylis : activer mon compte admin'}).click();
  await expect(admin.locator('[name=name]')).toHaveValue('Maylis');await expect(admin.locator('[name=lastName]')).toHaveValue('Chancerelle');
- await admin.locator('[name=password]').fill(password);await admin.getByRole('button',{name:'Activer mon compte admin'}).click();
+ await admin.getByRole('button',{name:'Activer mon compte admin'}).click();
  await expect(admin.locator('#daily-sessions')).toBeVisible();await expect(admin.getByRole('button',{name:'+ Séance',exact:true})).toHaveCount(0);
  await nav(admin,'groupe');await admin.getByRole('button',{name:'+ Inviter un coach'}).click();await admin.getByRole('button',{name:'Générer le lien'}).click();
  const invite=await admin.locator('#invite-link').inputValue();await admin.getByRole('button',{name:'Fermer',exact:true}).click();
  const coach=await newPage();await coach.goto(invite);await expect(coach.locator('[name=coach]')).toBeChecked();
- await coach.locator('[name=name]').fill('Coach Test');await coach.locator('[name=lastName]').fill('Club');await coach.locator('[name=email]').fill('coach-test');await coach.locator('[name=password]').fill(password);await coach.getByRole('button',{name:'Créer mon compte'}).click();await expect(coach.getByRole('button',{name:'+ Séance',exact:true})).toBeVisible();
- const athlete=await newPage();await athlete.goto(origin+'/#inscription');await athlete.locator('[name=name]').fill('Camille');await athlete.locator('[name=lastName]').fill('Martin');await athlete.locator('[name=phone]').fill('0600000000');await athlete.locator('[name=email]').fill('camille');await athlete.locator('[name=password]').fill(password);
+ await coach.locator('[name=name]').fill('Coach Test');await coach.locator('[name=lastName]').fill('Club');await coach.locator('[name=email]').fill('coach-test');await coach.getByRole('button',{name:'Créer mon compte'}).click();await expect(coach.getByRole('button',{name:'+ Séance',exact:true})).toBeVisible();
+ const athlete=await newPage();await athlete.goto(origin+'/#inscription');await athlete.locator('[name=name]').fill('Camille');await athlete.locator('[name=lastName]').fill('Martin');await athlete.locator('[name=phone]').fill('0600000000');await athlete.locator('[name=email]').fill('camille');
  await expect(athlete.locator('[name=invite]')).toBeHidden();await athlete.getByRole('button',{name:'Créer mon compte'}).click();await expect(athlete.locator('#daily-sessions')).toBeVisible();
  await expect(athlete.locator('.variant')).toBeVisible();await expect(athlete.getByRole('button',{name:/V2|Version 2/})).toHaveCount(0);await expect(athlete.getByRole('button',{name:/Modifier|Séance/})).toHaveCount(0);
  for(const [p,time] of [[athlete,'24'],[coach,'28'],[admin,'30']]){
@@ -59,9 +59,9 @@ try {
  await expect(athlete.locator('#navigation')).not.toBeVisible();assert.equal(await athlete.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Pas de défilement horizontal sur mobile');
  await athlete.screenshot({path:join(import.meta.dirname,'test-results/athlete-mobile.png'),fullPage:true});
  await athlete.reload();await expect(athlete.getByRole('button',{name:'Se connecter',exact:true})).toBeVisible();await expect(athlete.locator('#navigation')).toBeHidden();
- await athlete.locator('[name=email]').fill('camille');await athlete.locator('[name=password]').fill(password);await athlete.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(athlete.locator('#daily-sessions')).toBeVisible();
+ await athlete.locator('[name=email]').fill('camille');await athlete.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(athlete.locator('#daily-sessions')).toBeVisible();
  await athlete.getByRole('button',{name:'☰ Menu'}).click();await nav(athlete,'reglages');await athlete.getByRole('button',{name:'Supprimer mon profil',exact:true}).click();
- await athlete.locator('#editor [name=password]').fill(password);await athlete.locator('#editor [name=confirm]').check();await athlete.getByRole('button',{name:'Supprimer définitivement mon profil',exact:true}).click();await expect(athlete.getByRole('button',{name:'Se connecter',exact:true})).toBeVisible();
+ await athlete.locator('#editor [name=identifier]').fill('camille');await athlete.locator('#editor [name=confirm]').check();await athlete.getByRole('button',{name:'Supprimer définitivement mon profil',exact:true}).click();await expect(athlete.getByRole('button',{name:'Se connecter',exact:true})).toBeVisible();
  await expect(admin.getByRole('button',{name:'Supprimer mon profil',exact:true})).toBeDisabled();
  await expect(coach.getByRole('button',{name:'+ Séance',exact:true})).toBeVisible();
  assert.deepEqual(errors,[]);console.log('Parcours navigateur OK : admin/coach/athlète dans des onglets indépendants, chronos, séances multiples, déplacement, contenus, synchronisation, annuaire, transmission admin, connexion obligatoire et mobile.');

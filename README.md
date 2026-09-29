@@ -4,16 +4,15 @@
 
 1. Double-cliquer sur **Démarrer le site.command** dans ce dossier.
 2. Ouvrir **http://localhost:8787** dans un navigateur. Garder la fenêtre Terminal ouverte.
-3. Lors de la toute première utilisation, cliquer sur **Maylis : activer mon compte admin**. Le profil **Maylis Chancerelle**, identifiant `maylis`, est préparé. Choisir un mot de passe d’au moins 12 caractères.
+3. Lors de la toute première utilisation, cliquer sur **Maylis : activer mon compte admin**. Le profil **Maylis Chancerelle** est préparé ; choisir un identifiant.
 4. Pour arrêter : Ctrl+C dans le Terminal.
 
 Il faut maintenant utiliser l’adresse du serveur, et non ouvrir `index.html` par double-clic. Le serveur peut aussi se lancer avec `npm start` (Node ≥ 22.16 requis ; aucune dépendance serveur à installer).
 
 ## Comptes et données personnelles
 
-- Chaque ouverture ou rechargement de la page demande une connexion. La navigation interne entre les pages garde la session active.
-- La session n’est conservée ni dans un cookie, ni dans le stockage du navigateur : son jeton reste en mémoire dans l’onglet. Deux onglets peuvent ainsi utiliser deux comptes différents.
-- Les sessions expirent après 12 heures, même si l’onglet reste ouvert. Déconnexion les révoque immédiatement.
+- Chaque ouverture ou rechargement de la page demande une connexion par identifiant. La navigation interne garde la session active.
+- Un compte ne demande pas de mot de passe. Toute personne qui connaît l’identifiant peut ouvrir ce profil ; les droits du profil s’appliquent également.
 - Un compte coach possède ses propres chronos, exactement comme un athlète. Aucun endpoint ne permet de lire ou de modifier les chronos d’un autre compte.
 - Les athlètes s’inscrivent librement depuis **Inscription**, sans invitation.
 - Un administrateur crée une invitation coach depuis **Le groupe**, **Infos du groupe** ou **Réglages** et transmet personnellement son lien. Les invitations sont à usage unique et expirent après 7 jours.
@@ -23,6 +22,7 @@ Il faut maintenant utiliser l’adresse du serveur, et non ouvrir `index.html` p
 
 - Planning daté : les journées importées vont du 28 septembre 2026 au 23 janvier 2027. Une journée vide signifie « aucune séance renseignée », pas nécessairement repos.
 - La vue initiale sélectionne la date courante. Le calendrier et les boutons de semaine permettent de sélectionner une autre date.
+- Le calendrier peut avancer sans limite, donc jusqu’en août 2028 et au-delà. Aucune séance n’est inventée : les dates sans contenu restent vides et le coach peut y ajouter des séances.
 - Plusieurs séances peuvent exister le même jour : matin, après-midi, soir ou créneau non précisé.
 - Un jour importé comme repos peut recevoir une séance. Lorsqu’une séance active existe, la carte « Repos » initiale est masquée sans être supprimée.
 - Le coach peut créer, modifier, déplacer ou archiver une séance. Changer sa date suffit à déplacer son contenu. L’option « Échanger » permute les dates et créneaux de deux séances en une seule transaction.
@@ -40,7 +40,7 @@ La formule est **temps cible = temps de référence / (pourcentage / 100)**. Ell
 
 Le coach peut ajouter, modifier ou archiver les acronymes, circuits et informations. Les paragraphes fournis en début d’année sont conservés, regroupés sous « Organisation & pratique » et « Relations & règles du groupe ». Ils ne sont accessibles qu’après connexion.
 
-Les modifications sont enregistrées dans la base commune et récupérées automatiquement par les autres sessions ouvertes toutes les 10 secondes. Les formulaires en cours de saisie ne sont pas remplacés. Si deux coachs modifient le même élément, la seconde sauvegarde reçoit un avertissement de conflit plutôt que d’écraser la première.
+Les modifications sont enregistrées dans la base commune et récupérées automatiquement par les autres sessions ouvertes chaque minute et au retour dans l’onglet. Les formulaires en cours de saisie ne sont pas remplacés. Si deux coachs modifient le même élément, la seconde sauvegarde reçoit un avertissement de conflit plutôt que d’écraser la première.
 
 ## Navigation et annuaire
 
@@ -54,7 +54,7 @@ Dans **Réglages → Administrateurs du site**, un admin peut nommer un membre d
 
 **Le groupe** affiche un tableau des membres (prénom, nom, téléphone, rôle), avec recherche. Seuls les comptes connectés y accèdent. Aucun chrono ni adresse e-mail des autres membres n’y est transmis. Le téléphone est facultatif et peut être retiré des réglages.
 
-**Réglages → Supprimer mon profil** efface définitivement le compte, ses coordonnées et ses chronos, après confirmation par mot de passe. Toutes les sessions du compte sont révoquées. Les contenus partagés du groupe sont conservés. Le dernier admin doit d’abord nommer un successeur. Il n’y a pas de suppression du compte d’un autre membre dans cette interface.
+**Réglages → Supprimer mon profil** efface définitivement le compte, ses coordonnées et ses chronos, après confirmation par identifiant. Les contenus partagés du groupe sont conservés. Le dernier admin doit d’abord nommer un successeur. Il n’y a pas de suppression du compte d’un autre membre dans cette interface.
 
 ## Documents source
 
@@ -67,34 +67,27 @@ Les Word et Excel du dossier parent sont exclusivement lus. Aucun traitement n�
 
 `import_sources.py` régénère le fichier de préparation `seed.json` à partir du classeur en lecture seule. Il ne remplace pas les données déjà éditées dans la base. La base n’utilise les contenus initiaux qu’à sa première création.
 
-## Partage et hébergement
+## Hébergement gratuit et installation sur téléphone
 
-Cette version est fonctionnelle **sur un serveur local**, avec comptes et base partagée. `localhost` désigne ce Mac : ce lien n’est pas encore utilisable depuis les téléphones de l’équipe.
+Le site est une application web installable (PWA) : le groupe l’ouvre avec un lien, puis chacun peut l’ajouter à l’écran d’accueil de son téléphone. Les mises à jour publiées sur GitHub sont déployées automatiquement.
 
-Pour obtenir un site internet classique, le chemin recommandé est :
+Déploiement gratuit sur Cloudflare Pages :
 
-1. Mettre ce dossier dans un dépôt GitHub privé.
-2. Connecter ce dépôt à Render avec le fichier `render.yaml`.
-3. Créer le service depuis le Blueprint Render. Le disque persistant `/var/data` est défini dans `render.yaml`; il conserve la base SQLite quand le site redémarre.
-4. Ouvrir l’URL Render et cliquer sur **Maylis : activer mon compte admin**. Choisir l’identifiant et le mot de passe du compte Maylis. La première personne qui fait cette activation obtient le rôle admin.
-5. Une fois le premier admin activé, les inscriptions athlètes et les invitations coach se gèrent depuis le site.
+1. Dans Cloudflare, ouvrir **Workers & Pages → Create application → Pages → Connect to Git** et choisir le dépôt privé `MaylisCh/equipe-athle`.
+2. Renseigner `npm run build` comme commande de build et `dist` comme dossier de sortie.
+3. Dans **Storage & Databases → D1**, créer une base, par exemple `equipe-athle`. Dans le projet Pages, **Settings → Bindings → Add → D1 database**, la relier avec le nom `DB`, puis relancer le déploiement. La base est initialisée avec les séances importées, les acronymes et les infos du groupe lors du premier accès.
+4. Attendre le déploiement, ouvrir l’adresse `pages.dev` et activer le compte admin Maylis. Partager ce lien avec l’équipe.
 
-Render fournit automatiquement `RENDER_EXTERNAL_URL`, utilisé comme adresse HTTPS du site si `APP_ORIGIN` n’est pas défini. Pour un autre hébergeur Node, déployer **une seule instance** avec :
+Cloudflare Pages héberge le site et Pages Functions ; D1 stocke les séances, comptes, chronos et coordonnées. Le forfait Workers Free inclut actuellement D1 avec jusqu’à 500 Mo par base (5 Go au total), 5 millions de lignes lues et 100 000 lignes écrites par jour. Si une limite journalière est atteinte, les requêtes concernées reprennent à la remise à zéro. Les identifiants sans mot de passe sont simples, mais ne vérifient pas l’identité de la personne qui les saisit.
 
-- `NODE_ENV=production`
-- `APP_ORIGIN=https://adresse-du-site` si l’hébergeur ne fournit pas `RENDER_EXTERNAL_URL`
-- `HOST=0.0.0.0`
-- `PORT` selon l’hébergeur
-- `ATHLE_DATA_DIR` vers un dossier persistant privé
+Sur iPhone/iPad, ouvrir le lien dans Safari puis choisir **Partager → Sur l’écran d’accueil**. Sur Android, ouvrir le menu du navigateur puis choisir **Installer l’application** ou **Ajouter à l’écran d’accueil**.
 
-Placer le service derrière HTTPS, garder une seule instance active avec la base SQLite, configurer les limites de requêtes et sauvegarder le disque persistant. Le mot de passe oublié n’a pas encore de récupération par e-mail ; cela dépendra de l’hébergement et d’un service d’envoi choisi.
-
-La base SQLite est `data/athle.sqlite`. Les archives sont conservées en base (`archived=1`) et ne sont plus affichées. Pour sauvegarder manuellement, arrêter le serveur puis copier le dossier `data` dans un emplacement privé. Ne pas publier `data`, les sources de contenu, ni les documents du coach dans un hébergement statique.
+Les fichiers exposés sur le site sont construits dans `dist/`. La base, les sources Excel/Word, le code du serveur local et les autres fichiers du dépôt ne sont pas servis comme fichiers publics.
 
 ## Vérifications techniques
 
-`npm test` vérifie les droits côté serveur, les comptes et chronos indépendants, les invitations (dont refus d’élévation de droits), les échanges de séances, les séances multiples, les conflits et la persistance après redémarrage, ainsi que les calculs. Ces tests utilisent une base temporaire distincte.
+`npm test` vérifie le serveur local Node, les comptes par identifiant, les droits de rôle, les invitations, les séances et les calculs. Il utilise une base temporaire distincte ; l’API Cloudflare utilise D1.
 
 `npm run test:browser` vérifie les parcours dans Chromium avec trois comptes temporaires, les droits admin, les séances multiples, la mise à jour entre onglets, l’annuaire et l’affichage mobile. Installer au préalable les dépendances de développement avec `npm install`, puis le navigateur avec `npx playwright install chromium`. Les captures de vérification sont dans `test-results`.
 
-Le serveur utilise les modules intégrés de Node : [SQLite](https://nodejs.org/api/sqlite.html) et [crypto](https://nodejs.org/api/crypto.html). Les mots de passe sont hachés avec scrypt et sel individuel ; les jetons sont stockés hachés côté serveur. Le serveur ne sert que les fichiers publics nécessaires au navigateur.
+Le serveur local utilise les modules intégrés de Node : [SQLite](https://nodejs.org/api/sqlite.html) et [crypto](https://nodejs.org/api/crypto.html). La version hébergée utilise les Pages Functions et D1. Les identifiants n’ont pas de mot de passe ; un jeton temporaire garde la connexion active dans l’onglet.

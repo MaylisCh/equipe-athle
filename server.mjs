@@ -3,8 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBytes, randomUUID, createHash, scrypt, timingSafeEqual } from 'node:crypto';
-import { promisify } from 'node:util';
+import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { library, info } from './content.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -26,8 +25,10 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
  CREATE TABLE IF NOT EXISTS records (collection TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, archived INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(collection,id));
  CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS role_events (id INTEGER PRIMARY KEY, actor TEXT NOT NULL, member TEXT NOT NULL, previous_role TEXT NOT NULL, next_role TEXT NOT NULL, created INTEGER NOT NULL);
- INSERT OR IGNORE INTO meta VALUES ('revision',1);`);
+ INSERT OR IGNORE INTO meta VALUES ('revision',1);
+ INSERT OR IGNORE INTO meta VALUES ('setup_complete',0);`);
 if(!db.prepare('PRAGMA table_info(users)').all().some(c=>c.name==='previous_role')) db.exec("ALTER TABLE users ADD COLUMN previous_role TEXT NOT NULL DEFAULT 'athlete'");
+db.prepare("UPDATE meta SET value=1 WHERE key='setup_complete' AND EXISTS (SELECT id FROM users WHERE role='admin' AND password!='')").run();
 if (!db.prepare("SELECT value FROM meta WHERE key='seeded'").get()) {
  const seed = JSON.parse(readFileSync(join(ROOT, 'seed.json'), 'utf8'));
  db.exec('BEGIN');
@@ -42,18 +43,8 @@ if (!db.prepare("SELECT value FROM meta WHERE key='seeded'").get()) {
 if (!db.prepare('SELECT id FROM users LIMIT 1').get()) {
  db.prepare("INSERT INTO users(id,email,name,last_name,password,role) VALUES(?,?,?,?,?,?)").run(randomUUID(),'maylis','Maylis','Chancerelle','','admin');
 }
-const hasUsers = () => !!db.prepare("SELECT id FROM users WHERE role='admin' AND password!='' LIMIT 1").get();
+const hasUsers = () => !!db.prepare("SELECT value FROM meta WHERE key='setup_complete'").get()?.value;
 const hash = value => createHash('sha256').update(value).digest('hex');
-const derive = promisify(scrypt);
-async function passwordHash(password, salt=randomBytes(16).toString('hex')) {
- const value = await derive(password, salt, 64, {N:32768, r:8, p:1, maxmem:64*1024*1024});
- return `${salt}:${value.toString('hex')}`;
-}
-async function passwordMatches(password, saved) {
- const [salt, expected] = saved.split(':');
- const actual = (await passwordHash(password, salt)).split(':')[1];
- return timingSafeEqual(Buffer.from(expected,'hex'), Buffer.from(actual,'hex'));
-}
 function fail(message, status=400) { throw Object.assign(new Error(message), {status}); }
 function text(value, label, max=20000, required=false) {
  if (typeof value !== 'string' || value.length > max || (required && !value.trim())) fail(`${label} invalide.`);
@@ -130,7 +121,7 @@ async function bodyJSON(req) {
 }
 const allowedStatic = new Map([
  ['/', ['index.html','text/html']], ['/index.html',['index.html','text/html']],
- ['/app.js',['app.js','text/javascript']], ['/core.mjs',['core.mjs','text/javascript']], ['/style.css',['style.css','text/css']], ['/layout.css',['layout.css','text/css']]
+ ['/app.js',['app.js','text/javascript']], ['/core.mjs',['core.mjs','text/javascript']], ['/style.css',['style.css','text/css']], ['/layout.css',['layout.css','text/css']], ['/service-worker.js',['service-worker.js','text/javascript']], ['/manifest.webmanifest',['manifest.webmanifest','application/manifest+json']], ['/icon.svg',['icon.svg','image/svg+xml']]
 ]);
 async function handle(req,res) {
  res.setHeader('Cache-Control','no-store');
@@ -150,7 +141,7 @@ async function handle(req,res) {
   const ctx=context(req);
   if(req.method==='GET' && path==='/api/auth') {
    const setupAllowed=!hasUsers();
-   const pending=setupAllowed?db.prepare("SELECT name,last_name AS lastName,email FROM users WHERE role='admin' AND password='' LIMIT 1").get():null;
+   const pending=setupAllowed?db.prepare("SELECT name,last_name AS lastName,email FROM users WHERE role='admin' LIMIT 1").get():null;
    reply({setup:!!pending,pending,setupCodeRequired:false,user:ctx?publicUser(ctx):null,csrf:ctx?.csrf});return;
   }
   let body={};
@@ -163,16 +154,13 @@ async function handle(req,res) {
   if(req.method==='POST' && ['/api/login','/api/setup','/api/register'].includes(path)) {
    throttle(req.socket.remoteAddress);
    const email=text(body.email,'Identifiant',180,true).toLowerCase();
-   const password=text(body.password,'Mot de passe',256,true);
    if (path==='/api/login') {
     const user=db.prepare('SELECT * FROM users WHERE email=?').get(email);
-    if(!user || !user.password || !await passwordMatches(password,user.password)) fail('Identifiant ou mot de passe incorrect.',401);
+    if(!user || (user.role==='admin' && !hasUsers())) fail('Identifiant inconnu. Inscrivez-vous pour créer votre profil.',401);
     reply(loginCookie(res,user));return;
    }
-   if(password.length<12)fail('Choisissez un mot de passe d’au moins 12 caractères.');
    const name=text(body.name,'Prénom',80,true);
    const lastName=text(body.lastName||'','Nom',80),phone=text(body.phone||'','Téléphone',40);
-   const secret=await passwordHash(password);
    const user=atomic(()=>{
     let role='athlete';
     if(path==='/api/setup') {
@@ -189,12 +177,13 @@ async function handle(req,res) {
      const reserved=db.prepare("SELECT * FROM users WHERE role='admin' AND password='' LIMIT 1").get();
      if(!reserved)fail('Aucun compte administrateur en attente.',403);
      if(db.prepare('SELECT id FROM users WHERE email=? AND id!=?').get(email,reserved.id))fail('Cet identifiant est déjà utilisé.',409);
-     db.prepare('UPDATE users SET email=?,name=?,last_name=?,phone=?,password=? WHERE id=?').run(email,name,lastName,phone,secret,reserved.id);bump();
-     return {...reserved,email,name,last_name:lastName,phone,password:secret};
+     db.prepare('UPDATE users SET email=?,name=?,last_name=?,phone=? WHERE id=?').run(email,name,lastName,phone,reserved.id);
+     db.prepare("UPDATE meta SET value=1 WHERE key='setup_complete'").run();bump();
+     return {...reserved,email,name,last_name:lastName,phone};
     }
     if(db.prepare('SELECT id FROM users WHERE email=?').get(email))fail('Cet identifiant est déjà utilisé.',409);
     const user={id:randomUUID(),email,name,role,last_name:lastName,phone};
-    db.prepare('INSERT INTO users(id,email,name,password,role,last_name,phone) VALUES(?,?,?,?,?,?,?)').run(user.id,email,name,secret,user.role,lastName,phone);
+    db.prepare('INSERT INTO users(id,email,name,password,role,last_name,phone) VALUES(?,?,?,?,?,?,?)').run(user.id,email,name,'',user.role,lastName,phone);
     bump();
     return user;
    });
@@ -236,12 +225,11 @@ async function handle(req,res) {
   }
   if(req.method==='DELETE' && path==='/api/account') {
    throttle(req.socket.remoteAddress);
-   const current=db.prepare('SELECT password FROM users WHERE id=?').get(ctx.id);
    if(body.confirm!==true)fail('Confirmez la suppression du profil.');
-   if(!await passwordMatches(text(body.password,'Mot de passe',256,true),current.password))fail('Mot de passe incorrect.',403);
+   if(text(body.identifier,'Identifiant',180,true)!==ctx.email)fail('Identifiant incorrect.',403);
    atomic(()=>{
     const member=db.prepare('SELECT role FROM users WHERE id=?').get(ctx.id);
-    if(member.role==='admin' && db.prepare("SELECT COUNT(*) AS count FROM users WHERE role='admin' AND password!=''").get().count<=1)fail('Nommez un autre administrateur avant de supprimer votre profil.',409);
+    if(member.role==='admin' && db.prepare("SELECT COUNT(*) AS count FROM users WHERE role='admin'").get().count<=1)fail('Nommez un autre administrateur avant de supprimer votre profil.',409);
     db.prepare('DELETE FROM auth WHERE user_id=?').run(ctx.id);
     db.prepare('DELETE FROM users WHERE id=?').run(ctx.id);bump();
    });reply({ok:true});return;
@@ -256,7 +244,7 @@ async function handle(req,res) {
   if(req.method==='PUT' && roleMatch) {
    if(ctx.role!=='admin')fail('Seul un administrateur peut modifier les droits admin.',403);
    const result=atomic(()=>{
-    const member=db.prepare("SELECT * FROM users WHERE id=? AND password!=''").get(decodeURIComponent(roleMatch[1]));
+    const member=db.prepare('SELECT * FROM users WHERE id=?').get(decodeURIComponent(roleMatch[1]));
     if(!member)fail('Membre introuvable.',404);
     if(member.role!==body.expectedRole)fail('Le rôle a changé. Actualisez la page avant de réessayer.',409);
     let nextRole,previousRole=member.previous_role;
@@ -265,7 +253,7 @@ async function handle(req,res) {
      previousRole=member.role;nextRole='admin';
     }else if(body.action==='revoke-admin'){
      if(member.role!=='admin')fail('Ce membre n’est pas administrateur.');
-     const count=db.prepare("SELECT COUNT(*) AS count FROM users WHERE role='admin' AND password!=''").get().count;
+     const count=db.prepare("SELECT COUNT(*) AS count FROM users WHERE role='admin'").get().count;
      if(count<=1)fail('Nommez un autre administrateur avant de retirer les droits du dernier admin.',409);
      nextRole=previousRole==='coach'?'coach':'athlete';
     }else fail('Action invalide.');
@@ -303,5 +291,5 @@ async function handle(req,res) {
 }
 const server=http.createServer(handle);
 server.requestTimeout=15000;
-server.listen(PORT,HOST,()=>console.log(`Équipe Athlé : ${ORIGIN}\n${hasUsers()?'Connectez-vous à votre compte.':'Profil admin Maylis Chancerelle prêt : choisissez votre mot de passe lors de la première ouverture.'}`));
+server.listen(PORT,HOST,()=>console.log(`Équipe Athlé : ${ORIGIN}\n${hasUsers()?'Connectez-vous avec votre identifiant.':'Profil admin Maylis Chancerelle prêt : choisissez un identifiant lors de la première ouverture.'}`));
 for(const signal of ['SIGINT','SIGTERM']) process.on(signal,()=>server.close(()=>{db.close();process.exit(0);}));

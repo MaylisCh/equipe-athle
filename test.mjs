@@ -15,20 +15,18 @@ test('Chronos : formats, pourcentages, bornes et arrondi minute',()=>{
  assert.equal(formatTime(59.999),'1:00,00');
 });
 
-test('Activation du premier admin en production avec code secret',async t=>{
+test('Activation du premier admin en production par identifiant',async t=>{
  const data=mkdtempSync(join(tmpdir(),'athle-prod-test-'));
  const port=18789,origin=`https://localhost:${port}`,base=`http://localhost:${port}`;
  let processHandle,logs='';
- processHandle=spawn(process.execPath,['server.mjs'],{cwd:import.meta.dirname,env:{...process.env,NODE_ENV:'production',ADMIN_SETUP_SECRET:'code-secret-render',ATHLE_DATA_DIR:data,PORT:String(port),APP_ORIGIN:origin,HOST:'127.0.0.1'},stdio:['ignore','pipe','pipe']});
+ processHandle=spawn(process.execPath,['server.mjs'],{cwd:import.meta.dirname,env:{...process.env,NODE_ENV:'production',ATHLE_DATA_DIR:data,PORT:String(port),APP_ORIGIN:origin,HOST:'127.0.0.1'},stdio:['ignore','pipe','pipe']});
  processHandle.stdout.on('data',d=>logs+=d);processHandle.stderr.on('data',d=>logs+=d);
  t.after(async()=>{if(processHandle.exitCode===null){const exited=once(processHandle,'exit');processHandle.kill('SIGTERM');await exited;}});
  for(let i=0;i<100;i++){try{await fetch(base+'/api/auth');break;}catch{await delay(50);}}
  const auth=await (await fetch(base+'/api/auth')).json();
- assert.equal(auth.setup,true);assert.equal(auth.setupCodeRequired,true);
+ assert.equal(auth.setup,true);assert.equal(auth.setupCodeRequired,false);
  const headers={Origin:origin,'Content-Type':'application/json'};
- let response=await fetch(base+'/api/setup',{method:'POST',headers,body:JSON.stringify({email:'maylis',name:'Maylis',lastName:'Chancerelle',password:'Une phrase de test 2026!',setupCode:'mauvais-code'})});
- assert.equal(response.status,403);
- response=await fetch(base+'/api/setup',{method:'POST',headers,body:JSON.stringify({email:'maylis',name:'Maylis',lastName:'Chancerelle',password:'Une phrase de test 2026!',setupCode:'code-secret-render'})});
+ const response=await fetch(base+'/api/setup',{method:'POST',headers,body:JSON.stringify({email:'maylis',name:'Maylis',lastName:'Chancerelle'})});
  assert.equal(response.status,201,logs);
  assert.equal((await response.json()).user.role,'admin');
 });
@@ -49,7 +47,7 @@ test('Comptes indépendants, droits, invitations, éditions, échanges, conflits
   const response=await fetch(origin+'/api'+path,{method,headers:{Origin:origin,'Content-Type':'application/json',...(session?{Authorization:`Bearer ${session.accessToken}`,'X-CSRF-Token':session.csrf}:{})},body:body===undefined?undefined:JSON.stringify(body)});
   const json=await response.json();return {status:response.status,json};
  }
- const credentials=(email)=>({email,name:email,password:'Une phrase de test 2026!'});
+ const credentials=(email)=>({email,name:email});
  let result=await request('/state');assert.equal(result.status,401);
  const owner=(await request('/setup','POST',{...credentials('maylis'),name:'Maylis',lastName:'Chancerelle'})).json;assert.equal(owner.user.role,'admin');
  assert.equal((await request('/setup','POST',credentials('intrus'))).status,403);
@@ -127,11 +125,11 @@ test('Comptes indépendants, droits, invitations, éditions, échanges, conflits
  const coachPath='/members/'+admin.user.id+'/admin';
  assert.equal((await request(coachPath,'PUT',{action:'grant-admin',expectedRole:'coach'},bob)).status,200);
  assert.equal((await request(coachPath,'PUT',{action:'revoke-admin',expectedRole:'admin'},bob)).json.role,'coach','Restitution du rôle coach précédent');
- const deletion={password:credentials('alice').password,confirm:true};
- assert.equal((await request('/account','DELETE',deletion,bob)).status,409,'Le dernier admin ne peut pas supprimer son compte');
+ const deletion={identifier:'alice',confirm:true};
+ assert.equal((await request('/account','DELETE',deletion,bob)).status,403,'Un autre identifiant ne peut pas confirmer ce profil');
  assert.equal((await request('/account','DELETE',{...deletion,confirm:false},relogged)).status,400);
- assert.equal((await request('/account','DELETE',{...deletion,password:'faux mot de passe'},relogged)).status,403);
- assert.equal((await request('/account','DELETE',{...deletion,id:bob.user.id},relogged)).status,200,'La cible est toujours le compte connecté');
+ assert.equal((await request('/account','DELETE',{...deletion,identifier:'mauvais-identifiant'},relogged)).status,403);
+ assert.equal((await request('/account','DELETE',deletion,relogged)).status,200,'La cible est toujours le compte connecté');
  assert.equal((await request('/state','GET',undefined,relogged)).status,401);
  const afterDeletion=(await request('/state','GET',undefined,bob)).json;
  assert.equal(afterDeletion.members.some(m=>m.id===alice.user.id),false);
