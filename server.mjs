@@ -5,6 +5,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { library, info } from './content.mjs';
+import { defaultSeason, normalizeSeason } from './season.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DATA = process.env.ATHLE_DATA_DIR || join(ROOT, 'data');
@@ -39,6 +40,7 @@ if (!db.prepare("SELECT value FROM meta WHERE key='seeded'").get()) {
   db.exec("INSERT INTO meta VALUES ('seeded',1); COMMIT;");
  } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
+if(db.prepare('INSERT OR IGNORE INTO records(collection,id,data) VALUES(?,?,?)').run('season','2026-2027',JSON.stringify(defaultSeason)).changes)db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();
 if (!db.prepare('SELECT id FROM users LIMIT 1').get()) {
  db.prepare("INSERT INTO users(id,email,name,last_name,password,role) VALUES(?,?,?,?,?,?)").run(randomUUID(),'maylis','Maylis','Chancerelle','','admin');
 }
@@ -129,7 +131,7 @@ async function bodyJSON(req) {
 }
 const allowedStatic = new Map([
  ['/', ['index.html','text/html']], ['/index.html',['index.html','text/html']],
- ['/app.js',['app.js','text/javascript']], ['/core.mjs',['core.mjs','text/javascript']], ['/style.css',['style.css','text/css']], ['/layout.css',['layout.css','text/css']], ['/service-worker.js',['service-worker.js','text/javascript']], ['/manifest.webmanifest',['manifest.webmanifest','application/manifest+json']], ['/icon.svg',['icon.svg','image/svg+xml']]
+ ['/app.js',['app.js','text/javascript']], ['/core.mjs',['core.mjs','text/javascript']], ['/season.mjs',['season.mjs','text/javascript']], ['/style.css',['style.css','text/css']], ['/layout.css',['layout.css','text/css']], ['/calendar.css',['calendar.css','text/css']], ['/service-worker.js',['service-worker.js','text/javascript']], ['/manifest.webmanifest',['manifest.webmanifest','application/manifest+json']], ['/icon.svg',['icon.svg','image/svg+xml']]
 ]);
 async function handle(req,res) {
  res.setHeader('Cache-Control','no-store');
@@ -196,9 +198,10 @@ async function handle(req,res) {
    db.prepare('DELETE FROM auth WHERE token=?').run(ctx.token);reply({ok:true});return;
   }
   if(req.method==='GET' && path==='/api/state') {
-   const result={revision:db.prepare("SELECT value FROM meta WHERE key='revision'").get().value,user:publicUser(ctx),members:db.prepare('SELECT id,name,last_name AS lastName,phone,role FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE').all(),profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[]};
+   const result={revision:db.prepare("SELECT value FROM meta WHERE key='revision'").get().value,user:publicUser(ctx),members:db.prepare('SELECT id,name,last_name AS lastName,phone,role FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE').all(),profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[],season:null};
    for(const row of db.prepare('SELECT * FROM records WHERE archived=0 ORDER BY rowid').all()) {
     const item={...JSON.parse(row.data),version:row.version};
+    if(row.collection==='season'){result.season=item;continue;}
     if(ctx.role!=='coach'){delete item.coachNote;delete item.sourceText;}
     result[row.collection].push(item);
    }
@@ -261,6 +264,11 @@ async function handle(req,res) {
    });reply(result);return;
   }
   if(ctx.role!=='coach')fail('Cette action est réservée au coach.',403);
+  if(req.method==='PUT'&&path==='/api/season'){
+   let data;try{data=normalizeSeason(body);}catch(e){fail(e.message);}
+   const updated=atomic(()=>{const old=readRecord('season','2026-2027');versionCheck(old.version,body.version);db.prepare('UPDATE records SET data=?,version=? WHERE collection=? AND id=?').run(JSON.stringify(data),old.version+1,'season','2026-2027');bump();return {...data,version:old.version+1};});
+   reply(updated);return;
+  }
   const match=path.match(/^\/api\/(sessions|library|info)(?:\/([^/]+))?$/);
   if(!match)fail('Route introuvable.',404);
   const [,collection,encodedId]=match, id=encodedId?decodeURIComponent(encodedId):null;

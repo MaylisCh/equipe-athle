@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { once } from 'node:events';
 import { parseTime, targetTime, predictReference, trainingTarget, equivalentIntensity, weeklyLoadForDate, sessionLoad, formatTime } from './core.mjs';
+import { seasonWeekDate, seasonWeekForDate, generalPeriods, trainingPeriods, intensityPeriods, schoolHolidays, stages, competitions } from './season.mjs';
 
 test('Chronos : formats, pourcentages, bornes et arrondi minute',()=>{
  assert.equal(parseTime('24,50'),24.5);assert.equal(parseTime('1:02,50'),62.5);
@@ -40,6 +41,29 @@ test('Plages fixes et charge hebdomadaire distincte de la charge de séance',()=
  assert.deepEqual(sessionLoad({date:'2026-09-28',load:'high'}),{level:'high',source:'session'});
  assert.equal(sessionLoad({date:'2026-09-28',load:'none'}),null);
  assert.equal(weeklyLoadForDate('2028-08-01'),null);
+});
+
+test('Frise de saison : semaines, périodes, vacances, stage et compétitions du classeur',()=>{
+ assert.equal(seasonWeekDate(1),'2026-08-31');
+ assert.equal(seasonWeekDate(5),'2026-09-28');
+ assert.equal(seasonWeekDate(27),'2027-03-01');
+ assert.equal(seasonWeekDate(105),'2028-08-28');
+ assert.equal(seasonWeekForDate('2026-10-19').number,8);
+ assert.equal(seasonWeekForDate('2026-10-19').holiday.label,'Vacances scolaires IDF');
+ assert.equal(seasonWeekForDate('2026-12-21').stage.label,'Stage');
+ assert.equal(seasonWeekForDate('2026-12-28').note.label,'Noël + NA');
+ assert.equal(seasonWeekForDate('2026-12-28').competition.label,'Reg CJ');
+ assert.equal(seasonWeekForDate('2027-03-01').competition.label,'ES-NAT');
+ assert.equal(seasonWeekForDate('2027-03-08').number,28);
+ assert.equal(seasonWeekForDate('2028-08-31').number,105);
+ assert.equal(seasonWeekForDate('2028-09-04'),null);
+ assert.equal(seasonWeekForDate('2026-02-30'),null);
+ assert.deepEqual(generalPeriods.map(p=>[p.start,p.end]),[[1,4],[5,17],[18,25]]);
+ assert.deepEqual(trainingPeriods.map(p=>[p.start,p.end]),[[1,4],[5,16],[17,20],[21,27]]);
+ assert.deepEqual(intensityPeriods.map(p=>[p.start,p.end]),[[5,8],[9,12],[13,16]]);
+ assert.deepEqual(schoolHolidays.map(p=>[p.start,p.end]),[[8,9],[16,17],[23,24]]);
+ assert.deepEqual(stages.map(p=>p.start),[17]);
+ assert.deepEqual(competitions.map(p=>p.week),[18,20,21,22,23,24,27]);
 });
 
 test('Activation du premier admin en production par identifiant',async t=>{
@@ -89,6 +113,21 @@ test('Comptes indépendants, droits, éditions, échanges, conflits et persistan
  assert.equal((await request('/invitations','POST',{},admin)).status,404);
  let original=(await request('/state','GET',undefined,admin)).json;
  assert.equal(original.sessions.length,101);assert.equal(original.info.length,12);assert.equal(original.library.length,11);
+ assert.equal(original.season.weeklyLoads.length,105);
+ assert.equal(original.season.generalPeriods[1].label,'Développement général → orienté → spécifique');
+ const changedSeason=JSON.parse(JSON.stringify(original.season));
+ changedSeason.weeklyLoads[4]='high';changedSeason.weeklyLoads[104]='medium';changedSeason.trainingPeriods[1].label='Préparation ajustée';
+ changedSeason.trainingPeriods.push({start:80,end:84,label:'Préparation future',tone:'custom'});
+ changedSeason.absences.push({start:90,end:90,label:'Absence du groupe',tone:'custom'});
+ assert.equal((await request('/season','PUT',changedSeason,alice)).status,403);
+ assert.equal((await request('/season','PUT',changedSeason,owner)).status,403);
+ assert.equal((await request('/season','PUT',changedSeason,admin)).status,200);
+ const bobSeason=(await request('/state','GET',undefined,bob)).json.season;
+ assert.equal(bobSeason.weeklyLoads[4],'high');assert.equal(bobSeason.weeklyLoads[104],'medium');assert.equal(bobSeason.trainingPeriods[1].label,'Préparation ajustée');
+ assert.equal(bobSeason.trainingPeriods.at(-1).label,'Préparation future');assert.equal(bobSeason.absences[0].start,90);
+ assert.equal((await request('/season','PUT',changedSeason,coach2)).status,409,'Une ancienne version ne doit pas écraser la frise.');
+ assert.equal((await request('/season','PUT',{...bobSeason,schoolHolidays:[...bobSeason.schoolHolidays,{start:8,end:10,label:'Chevauchement'}]},admin)).status,400);
+ assert.equal((await request('/season','PUT',{...bobSeason,weeklyLoads:[...bobSeason.weeklyLoads.slice(0,26)]},admin)).status,400);
  assert.equal(original.sessions.find(s=>s.date==='2026-09-29').v2.length>0,true);
  assert.equal((await request('/profile','PUT',{times:{200:24,400:54},version:1},alice)).status,200);
  assert.equal((await request('/profile','PUT',{times:{200:28},version:1},admin)).status,200);

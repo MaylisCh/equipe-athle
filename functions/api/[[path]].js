@@ -1,5 +1,6 @@
 import seed from '../../seed.json';
 import { library, info } from '../../content.mjs';
+import { defaultSeason, normalizeSeason } from '../../season.mjs';
 
 const schema = `
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL, profile TEXT NOT NULL DEFAULT '{}', profile_version INTEGER NOT NULL DEFAULT 1, last_name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', account_version INTEGER NOT NULL DEFAULT 1, previous_role TEXT NOT NULL DEFAULT 'athlete');
@@ -27,6 +28,8 @@ async function digest(value) {
 async function initialize(db) {
  if(!initialization)initialization=(async()=>{
   await db.exec(schema);
+  const season=await stmt(db,'INSERT OR IGNORE INTO records(collection,id,data) VALUES(?,?,?)','season','2026-2027',JSON.stringify(defaultSeason)).run();
+  if(season.meta.changes)await db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();
   const ready=await db.prepare("SELECT value FROM meta WHERE key='seeded'").first();
   if(ready)return;
   await stmt(db,'INSERT OR IGNORE INTO users(id,email,name,role,last_name) VALUES(?,?,?,?,?)',crypto.randomUUID(),'maylis','Maylis','admin','Chancerelle').run();
@@ -145,8 +148,8 @@ async function handle(request,db) {
    db.prepare('SELECT id,name,last_name AS lastName,phone,role FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE').all(),
    db.prepare('SELECT * FROM records WHERE archived=0 ORDER BY rowid').all()
   ]);
-  const result={revision:meta.value,user:publicUser(ctx),members:members.results,profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[]};
-  for(const row of rows.results){const item={...JSON.parse(row.data),version:row.version};if(ctx.role!=='coach'){delete item.coachNote;delete item.sourceText;}result[row.collection].push(item);}
+  const result={revision:meta.value,user:publicUser(ctx),members:members.results,profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[],season:null};
+  for(const row of rows.results){const item={...JSON.parse(row.data),version:row.version};if(row.collection==='season'){result.season=item;continue;}if(ctx.role!=='coach'){delete item.coachNote;delete item.sourceText;}result[row.collection].push(item);}
   return json(result);
  }
  if(method==='PUT'&&path==='/api/profile'){
@@ -189,6 +192,14 @@ async function handle(request,db) {
   await db.batch([stmt(db,'UPDATE users SET role=?,previous_role=?,account_version=account_version+1 WHERE id=?',role,previous,member.id),stmt(db,'INSERT INTO role_events(actor,member,previous_role,next_role,created) VALUES(?,?,?,?,?)',ctx.id,member.id,member.role,role,Date.now()),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")]);return json({ok:true,role});
  }
  if(ctx.role!=='coach')error('Cette action est réservée au coach.',403);
+ if(method==='PUT'&&path==='/api/season'){
+  let data;try{data=normalizeSeason(body);}catch(e){error(e.message);}
+  const old=await getRecord(db,'season','2026-2027');versionCheck(old.version,body.version);
+  const updated=await stmt(db,'UPDATE records SET data=?,version=version+1 WHERE collection=? AND id=? AND version=?',JSON.stringify(data),'season','2026-2027',old.version).run();
+  if(!updated.meta.changes)error('Les repères de saison ont été modifiés ailleurs. Rechargez la page.',409);
+  await db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();
+  return json({...data,version:old.version+1});
+ }
  const match=path.match(/^\/api\/(sessions|library|info)(?:\/([^/]+))?$/);
  if(!match)error('Route introuvable.',404);
  const [,collection,encoded]=match,id=encoded?decodeURIComponent(encoded):null;

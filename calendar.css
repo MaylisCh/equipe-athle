@@ -1,1 +1,89 @@
-.calendar-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.calendar-head h2{margin:0}.legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}.legend span{font-size:.73rem;font-weight:750;border-radius:999px;padding:4px 9px}.speed{background:#d8eff3;color:#075f70}.strength{background:#f7e3cb;color:#7a3e00}.aerobic{background:#e4ead0;color:#456000}.group{background:#e9dff2;color:#60368a}.weekdays,.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}.weekdays{font-size:.72rem;font-weight:800;color:#65736b;text-align:center;margin-bottom:5px}.calendar-day{min-height:72px;padding:7px;border:1px solid #d9ddd4;background:#fff;border-radius:9px;text-align:left;color:#132820;font-size:.78rem}.calendar-day.empty{visibility:hidden}.calendar-day.has-session{border-width:2px}.calendar-day.has-session:hover,.calendar-day.selected{outline:2px solid #132820;outline-offset:1px}.calendar-day small{display:block;line-height:1.15;margin-top:5px;font-size:.66rem;font-weight:700}.calendar-day.speed{border-color:#68c0d0;background:#f2fbfc}.calendar-day.strength{border-color:#dfaa70;background:#fffbf6}.calendar-day.aerobic{border-color:#b7c773;background:#fbfdf3}.calendar-day.group{border-color:#b28dd1;background:#fcf9ff}@media(max-width:600px){.calendar-day{min-height:58px;padding:5px}.calendar-day small{font-size:.56rem}.legend{gap:5px}}
+.season-overview{overflow:hidden;padding:0}
+.season-overview>summary{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:23px 28px;cursor:pointer;list-style:none}
+.season-overview>summary::-webkit-details-marker{display:none}
+.season-overview>summary strong{display:block;font-size:1.25rem;line-height:1.3}
+.season-overview>summary .eyebrow{display:block;margin:0 0 4px}
+.season-overview>summary small{font-size:.73rem;text-align:right}
+.season-overview[open]>summary{border-bottom:1px solid var(--line)}
+.season-overview>.help{margin:14px 28px;font-size:.76rem}
+.season-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 28px}
+.season-tools .help{margin:0;font-size:.76rem}
+.season-tools button{flex-shrink:0;font-size:.75rem}
+.season-rail{overflow-x:auto;overflow-y:hidden;padding-bottom:10px;scrollbar-color:#adc9bd #edf2e9;scrollbar-width:thin}
+.season-rail-inner{width:max-content;padding:0 16px 10px 0}
+.timeline-row{display:grid;grid-template-columns:128px repeat(105,82px);align-items:stretch;min-height:40px;gap:2px;margin-bottom:3px}
+.timeline-col-2{grid-column-start:2}.timeline-col-3{grid-column-start:3}.timeline-col-4{grid-column-start:4}.timeline-col-5{grid-column-start:5}.timeline-col-6{grid-column-start:6}.timeline-col-7{grid-column-start:7}.timeline-col-8{grid-column-start:8}.timeline-col-9{grid-column-start:9}.timeline-col-10{grid-column-start:10}.timeline-col-11{grid-column-start:11}.timeline-col-12{grid-column-start:12}.timeline-col-13{grid-column-start:13}.timeline-col-14{grid-column-start:14}.timeline-col-15{grid-column-start:15}.timeline-col-16{grid-column-start:16}.timeline-col-17{grid-column-start:17}.timeline-col-18{grid-column-start:18}.timeline-col-19{grid-column-start:19}.timeline-col-20{grid-column-start:20}.timeline-col-21{grid-column-start:21}.timeline-col-22{grid-column-start:22}.timeline-col-23{grid-column-start:23}.timeline-col-24{grid-column-start:24}.timeline-col-25{grid-column-start:25}.timeline-col-26{grid-column-start:26}.timeline-col-27{grid-column-start:27}.timeline-col-28{grid-column-start:28}.timeline-col-29{grid-column-start:29}.timeline-col-30{grid-column-start:30}.timeline-col-31{grid-column-start:31}.timeline-col-32{grid-column-start:32}.timeline-col-33{grid-column-start:33}.timeline-col-34{grid-column-start:34}.timeline-col-35{grid-column-start:35}.timeline-col-36{grid-column-start:36}.timeline-col-37{grid-column-start:37}.timeline-col-38{grid-column-start:38}.timeline-col-39{grid-column-start:39}.timeline-col-40{grid-column-start:40}.timeline-col-41{grid-column-start:41}.timeline-col-42{grid-column-start:42}.timeline-col-43{grid-column-start:43}.timeline-col-44{grid-column-start:44}.timeline-col-45{grid-column-start:45}.timeline-col-46{grid-column-start:46}.timeline-col-47{grid-column-start:47}.timeline-col-48{grid-column-start:48}.timeline-col-49{grid-column-start:49}.timeline-col-50{grid-column-start:50}.timeline-col-51{grid-column-start:51}.timeline-col-52{grid-column-start:52}.timeline-col-53{grid-column-start:53}.timeline-col-54{grid-column-start:54}.timeline-col-55{grid-column-start:55}.timeline-col-56{grid-column-start:56}.timeline-col-57{grid-column-start:57}.timeline-col-58{grid-column-start:58}.timeline-col-59{grid-column-start:59}.timeline-col-60{grid-column-start:60}.timeline-col-61{grid-column-start:61}.timeline-col-62{grid-column-start:62}.timeline-col-63{grid-column-start:63}.timeline-col-64{grid-column-start:64}.timeline-col-65{grid-column-start:65}.timeline-col-66{grid-column-start:66}.timeline-col-67{grid-column-start:67}.timeline-col-68{grid-column-start:68}.timeline-col-69{grid-column-start:69}.timeline-col-70{grid-column-start:70}.timeline-col-71{grid-column-start:71}.timeline-col-72{grid-column-start:72}.timeline-col-73{grid-column-start:73}.timeline-col-74{grid-column-start:74}.timeline-col-75{grid-column-start:75}.timeline-col-76{grid-column-start:76}.timeline-col-77{grid-column-start:77}.timeline-col-78{grid-column-start:78}.timeline-col-79{grid-column-start:79}.timeline-col-80{grid-column-start:80}.timeline-col-81{grid-column-start:81}.timeline-col-82{grid-column-start:82}.timeline-col-83{grid-column-start:83}.timeline-col-84{grid-column-start:84}.timeline-col-85{grid-column-start:85}.timeline-col-86{grid-column-start:86}.timeline-col-87{grid-column-start:87}.timeline-col-88{grid-column-start:88}.timeline-col-89{grid-column-start:89}.timeline-col-90{grid-column-start:90}.timeline-col-91{grid-column-start:91}.timeline-col-92{grid-column-start:92}.timeline-col-93{grid-column-start:93}.timeline-col-94{grid-column-start:94}.timeline-col-95{grid-column-start:95}.timeline-col-96{grid-column-start:96}.timeline-col-97{grid-column-start:97}.timeline-col-98{grid-column-start:98}.timeline-col-99{grid-column-start:99}.timeline-col-100{grid-column-start:100}.timeline-col-101{grid-column-start:101}.timeline-col-102{grid-column-start:102}.timeline-col-103{grid-column-start:103}.timeline-col-104{grid-column-start:104}.timeline-col-105{grid-column-start:105}.timeline-col-106{grid-column-start:106}
+.timeline-span-1{grid-column-end:span 1}.timeline-span-2{grid-column-end:span 2}.timeline-span-3{grid-column-end:span 3}.timeline-span-4{grid-column-end:span 4}.timeline-span-5{grid-column-end:span 5}.timeline-span-6{grid-column-end:span 6}.timeline-span-7{grid-column-end:span 7}.timeline-span-8{grid-column-end:span 8}.timeline-span-9{grid-column-end:span 9}.timeline-span-10{grid-column-end:span 10}.timeline-span-11{grid-column-end:span 11}.timeline-span-12{grid-column-end:span 12}.timeline-span-13{grid-column-end:span 13}.timeline-span-14{grid-column-end:span 14}.timeline-span-15{grid-column-end:span 15}.timeline-span-16{grid-column-end:span 16}.timeline-span-17{grid-column-end:span 17}.timeline-span-18{grid-column-end:span 18}.timeline-span-19{grid-column-end:span 19}.timeline-span-20{grid-column-end:span 20}.timeline-span-21{grid-column-end:span 21}.timeline-span-22{grid-column-end:span 22}.timeline-span-23{grid-column-end:span 23}.timeline-span-24{grid-column-end:span 24}.timeline-span-25{grid-column-end:span 25}.timeline-span-26{grid-column-end:span 26}.timeline-span-27{grid-column-end:span 27}.timeline-span-28{grid-column-end:span 28}.timeline-span-29{grid-column-end:span 29}.timeline-span-30{grid-column-end:span 30}.timeline-span-31{grid-column-end:span 31}.timeline-span-32{grid-column-end:span 32}.timeline-span-33{grid-column-end:span 33}.timeline-span-34{grid-column-end:span 34}.timeline-span-35{grid-column-end:span 35}.timeline-span-36{grid-column-end:span 36}.timeline-span-37{grid-column-end:span 37}.timeline-span-38{grid-column-end:span 38}.timeline-span-39{grid-column-end:span 39}.timeline-span-40{grid-column-end:span 40}.timeline-span-41{grid-column-end:span 41}.timeline-span-42{grid-column-end:span 42}.timeline-span-43{grid-column-end:span 43}.timeline-span-44{grid-column-end:span 44}.timeline-span-45{grid-column-end:span 45}.timeline-span-46{grid-column-end:span 46}.timeline-span-47{grid-column-end:span 47}.timeline-span-48{grid-column-end:span 48}.timeline-span-49{grid-column-end:span 49}.timeline-span-50{grid-column-end:span 50}.timeline-span-51{grid-column-end:span 51}.timeline-span-52{grid-column-end:span 52}.timeline-span-53{grid-column-end:span 53}.timeline-span-54{grid-column-end:span 54}.timeline-span-55{grid-column-end:span 55}.timeline-span-56{grid-column-end:span 56}.timeline-span-57{grid-column-end:span 57}.timeline-span-58{grid-column-end:span 58}.timeline-span-59{grid-column-end:span 59}.timeline-span-60{grid-column-end:span 60}.timeline-span-61{grid-column-end:span 61}.timeline-span-62{grid-column-end:span 62}.timeline-span-63{grid-column-end:span 63}.timeline-span-64{grid-column-end:span 64}.timeline-span-65{grid-column-end:span 65}.timeline-span-66{grid-column-end:span 66}.timeline-span-67{grid-column-end:span 67}.timeline-span-68{grid-column-end:span 68}.timeline-span-69{grid-column-end:span 69}.timeline-span-70{grid-column-end:span 70}.timeline-span-71{grid-column-end:span 71}.timeline-span-72{grid-column-end:span 72}.timeline-span-73{grid-column-end:span 73}.timeline-span-74{grid-column-end:span 74}.timeline-span-75{grid-column-end:span 75}.timeline-span-76{grid-column-end:span 76}.timeline-span-77{grid-column-end:span 77}.timeline-span-78{grid-column-end:span 78}.timeline-span-79{grid-column-end:span 79}.timeline-span-80{grid-column-end:span 80}.timeline-span-81{grid-column-end:span 81}.timeline-span-82{grid-column-end:span 82}.timeline-span-83{grid-column-end:span 83}.timeline-span-84{grid-column-end:span 84}.timeline-span-85{grid-column-end:span 85}.timeline-span-86{grid-column-end:span 86}.timeline-span-87{grid-column-end:span 87}.timeline-span-88{grid-column-end:span 88}.timeline-span-89{grid-column-end:span 89}.timeline-span-90{grid-column-end:span 90}.timeline-span-91{grid-column-end:span 91}.timeline-span-92{grid-column-end:span 92}.timeline-span-93{grid-column-end:span 93}.timeline-span-94{grid-column-end:span 94}.timeline-span-95{grid-column-end:span 95}.timeline-span-96{grid-column-end:span 96}.timeline-span-97{grid-column-end:span 97}.timeline-span-98{grid-column-end:span 98}.timeline-span-99{grid-column-end:span 99}.timeline-span-100{grid-column-end:span 100}.timeline-span-101{grid-column-end:span 101}.timeline-span-102{grid-column-end:span 102}.timeline-span-103{grid-column-end:span 103}.timeline-span-104{grid-column-end:span 104}.timeline-span-105{grid-column-end:span 105}
+.timeline-label{position:sticky;left:0;z-index:2;display:flex;align-items:center;padding:6px 9px 6px 20px;background:var(--card);font-size:.68rem;font-weight:750;color:var(--muted);line-height:1.2;box-shadow:4px 0 8px #143e300c}
+.timeline-week{padding:3px 4px;border:1px solid var(--line);border-radius:8px;background:#f4f6ef;color:var(--ink);font-size:.78rem;line-height:1.2;text-align:center}
+.timeline-week small{display:block;font-size:.6rem;font-weight:500}
+.timeline-week.in-month{background:#e8f1e6;border-color:#b9d0b7}
+.timeline-week.selected{background:var(--ink);color:#fff;border-color:var(--ink)}
+.timeline-week.selected small{color:#dbe9d3}
+.timeline-band{display:flex;align-items:center;justify-content:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 8px;border-radius:7px;font-size:.7rem;font-weight:700}
+.timeline-general{background:#e6eee9;color:#285843}
+.timeline-general.tone-developpement{background:#dceae8;color:#185a5b}
+.timeline-general.tone-hiver{background:#dfe7f2;color:#365573}
+.timeline-training{background:#f3e2ec;color:#7e4b6e}
+.timeline-training.tone-conditionnement{background:#f3e2ec;color:#7e4b6e}
+.timeline-training.tone-preparation{background:#f7e1dc;color:#8e5144}
+.timeline-training.tone-specifique{background:#fbe5d4;color:#996132}
+.timeline-training.tone-competition{background:#f2dddb;color:#944747}
+.timeline-intensity{background:#dce9f1;color:#285878}
+.timeline-intensity.tone-intense{background:#d5e1ee;color:#2a506d}
+.timeline-intensity.tone-volume{background:#d9e4f3;color:#2c4f79}
+.timeline-holiday{background:#d7f0f5;color:#176179}
+.timeline-absence{background:#e9e6f5;color:#5f5387}
+.timeline-stage{background:#f7e9d7;color:#8f581b}
+.timeline-load{display:flex;align-items:center;justify-content:center;gap:3px;padding:3px 1px;border-radius:7px;background:#f4efe5;color:#886839;font-size:.72rem;font-weight:800}
+.timeline-load small{font-size:.56rem;color:inherit;font-weight:600}
+.timeline-load.load-medium{background:#f8e6cf;color:#9c6220}
+.timeline-load.load-high{background:#f8dedd;color:#a8474b}
+.timeline-competition{display:grid;place-items:center;padding:3px;background:#f5e4e5;border-radius:7px;color:#914d52;font-size:.67rem;font-weight:750;text-align:center}
+.season-editable{border:1px dashed #597f70;cursor:pointer}
+.season-editable:hover{filter:brightness(.94);outline:2px solid #8db79d}
+.timeline-load.load-empty{background:#f4f5f0;color:#648472}
+.season-delete{color:#a33c45;padding-left:0}
+.month-calendar .section-head{margin-bottom:18px}
+.month-calendar .legend{margin-bottom:18px}
+.calendar-weeks{border-top:1px solid var(--line)}
+.calendar-week{padding:12px 0 15px;border-bottom:1px solid var(--line)}
+.calendar-week:last-child{border-bottom:0;padding-bottom:0}
+.calendar-week-head{display:flex;flex-wrap:wrap;align-items:center;gap:5px 10px;margin:0 0 9px;font-size:.72rem}
+.calendar-week-head>strong{color:var(--green);font-size:.8rem;min-width:32px}
+.calendar-week-head>span{border-radius:6px;padding:3px 7px}
+.week-context-load{background:#f4eee3;color:#85633a;font-weight:700}
+.week-context-load.load-medium{background:#faebd7;color:#905b22}
+.week-context-load.load-high{background:#f7dfde;color:#a5454b}
+.week-context-load span{margin-left:3px;letter-spacing:1px}
+.week-context-intensity{background:#e6eef5;color:#315879}
+.week-context-competition{background:#f6e5e5;color:#914d52;font-weight:700}
+.week-context-note{background:#f7ecd9;color:#835a25}
+.calendar-week-ribbons{display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
+.week-ribbon{display:block;width:100%;padding:4px 10px;border-radius:6px;font-size:.72rem;font-weight:750;line-height:1.3}
+.week-holiday{background:#d7f0f5;color:#176179}
+.week-absence{background:#e9e6f5;color:#5f5387}
+.week-stage{background:#f7e9d7;color:#8f581b}
+.calendar-week-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.month-calendar .calendar-day{min-height:91px;background:#fafbf7}
+.month-calendar .calendar-day.outside-month{background:#f5f6f1;opacity:.52}
+.month-calendar .calendar-day.outside-month:hover{opacity:1}
+.month-calendar .calendar-day.selected{background:#edf2e5}
+.month-calendar .calendar-day:has(.event-label){background:#fffefa}
+.month-calendar .calendar-day.outside-month:has(.event-label){background:#f5f6f1}
+.month-calendar .calendar-day.selected:has(.event-label){background:#edf2e5}
+@media(max-width:760px){
+ .season-overview>summary{padding:18px 19px;align-items:flex-start;flex-direction:column;gap:5px}
+ .season-overview>summary strong{font-size:1.08rem}
+ .season-overview>summary small{text-align:left}
+ .season-overview>.help{margin:12px 19px}
+ .season-tools{padding:12px 19px;align-items:flex-start;flex-direction:column}
+ .timeline-row{grid-template-columns:104px repeat(105,76px);min-height:37px}
+ .timeline-label{padding-left:12px;font-size:.62rem}
+ .timeline-band{font-size:.66rem}
+ .calendar-week-days{gap:3px}
+ .month-calendar .calendar-day{min-height:78px;padding:5px 3px}
+ .calendar-week-head{font-size:.65rem;gap:4px 6px}
+ .calendar-week-head>span{padding:2px 5px}
+ .week-ribbon{font-size:.65rem}
+}

@@ -1,3 +1,5 @@
+import { seasonWeekForDate } from './season.mjs';
+
 export const distances = [50,60,80,100,125,150,200,250,300,400,500,600,800,1000,1500];
 export const types = {
  speed:'Vitesse / technique', strength:'Musculation', vo2:'VO₂ max',
@@ -70,20 +72,13 @@ export function formatTime(value) {
 }
 export const dateKey = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 export const fromKey = key => new Date(`${key}T12:00:00`);
-// Feuille « 20262027 » : les trois bandes colorées indiquent la charge
-// de chaque semaine, pas celle des séances individuelles. S1 = 31/08/2026.
-const weeklyLoads = ['light','medium','medium','light','medium','medium','high','light','medium','high','high','light','medium','high','high','light','high','light','light','light','light','light','light','light'];
-export function weeklyLoadForDate(key) {
- const date=fromKey(key);
- if(!Number.isFinite(+date))return null;
- const start=fromKey('2026-08-31');
- const day=Math.round((Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())-Date.UTC(start.getFullYear(),start.getMonth(),start.getDate()))/86400000);
- return weeklyLoads[Math.floor(day/7)]||null;
+export function weeklyLoadForDate(key,season) {
+ return seasonWeekForDate(key,season)?.load||null;
 }
-export function sessionLoad(session) {
+export function sessionLoad(session,season) {
  if(session.load==='none')return null;
  if(['light','medium','high'].includes(session.load))return {level:session.load,source:'session'};
- const level=weeklyLoadForDate(session.date);
+ const level=weeklyLoadForDate(session.date,season);
  return level?{level,source:'week'}:null;
 }
 export function equivalentIntensity(times,distance,minTime,maxTime) {

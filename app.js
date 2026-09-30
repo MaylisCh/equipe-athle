@@ -1,4 +1,5 @@
 import { distances, types, parseTime, trainingTarget, equivalentIntensity, sessionLoad, formatTime, formatSpeed, dateKey, fromKey } from './core.mjs';
+import { seasonWeekCount, seasonWeekDate, seasonWeekForDate, defaultSeason } from './season.mjs';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -7,10 +8,11 @@ const compactTypes={speed:'Vitesse',strength:'Muscu',vo2:'VO₂',endurance:'Endu
 const compactSlots={matin:'Matin','apres-midi':'Après-m.',soir:'Soir'};
 const loadLabels={light:'légère',medium:'moyenne',high:'élevée'};
 const loadOptions={auto:'Selon la semaine de l’Excel',light:'Légère',medium:'Moyenne',high:'Élevée',none:'Ne pas afficher de charge'};
+const seasonKinds={generalPeriods:'Période de saison',trainingPeriods:'Cycle / période d’entraînement',intensityPeriods:'Intensité et volume',schoolHolidays:'Vacances scolaires',absences:'Absence / indisponibilité',stages:'Stage',seasonNotes:'Note de saison',competitions:'Compétition'};
 const coachTime=value=>formatTime(value).replace(/,00(?= s|$)/,'');
 const percentText=value=>`${Number(value.toFixed(1)).toLocaleString('fr-FR',{maximumFractionDigits:1})} %`;
-const loadBadge=s=>{const load=sessionLoad(s);return load?`<span class="pill load-pill load-${load.level}" title="${load.source==='week'?'Charge prévue dans le planning hebdomadaire':'Charge indiquée pour cette séance'}">Charge ${load.source==='week'?'semaine':'séance'} : ${loadLabels[load.level]}</span>`:'';};
-const loadMarker=s=>{const load=sessionLoad(s);return load?`<span class="load-mark load-${load.level}" aria-hidden="true">${'▮'.repeat({light:1,medium:2,high:3}[load.level])}</span>`:'';};
+const loadBadge=s=>{const load=sessionLoad(s,state?.season);return load?`<span class="pill load-pill load-${load.level}" title="${load.source==='week'?'Charge prévue dans le planning hebdomadaire':'Charge indiquée pour cette séance'}">Charge ${load.source==='week'?'semaine':'séance'} : ${loadLabels[load.level]}</span>`:'';};
+const loadMarker=s=>{const load=sessionLoad(s,state?.season);return load?`<span class="load-mark load-${load.level}" aria-hidden="true">${'▮'.repeat({light:1,medium:2,high:3}[load.level])}</span>`:'';};
 const fullDate = key => fromKey(key).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 const shortDate = key => fromKey(key).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
 const today = () => dateKey(new Date());
@@ -77,13 +79,58 @@ function sessionCard(s) {
  ${targets.length?`<div class="session-targets">${targets.map(targetCard).join('')}</div>`:''}
  ${coach()&&s.coachNote?`<p class="coach-note"><strong>Note coach</strong><br>${esc(s.coachNote)}</p>`:''}</article>`;
 }
+function timelineBands(label,items,kind,category) {
+ return `<div class="timeline-row"><span class="timeline-label">${label}</span>${items.map((item,index)=>{const type=item.category||category,at=item.index??index,tag=coach()?'button':'span';return `<${tag} ${coach()?`type="button" data-season-category="${type}" data-season-index="${at}"`:''} class="timeline-band timeline-${kind} ${item.tone?`tone-${item.tone}`:''} timeline-col-${item.start+1} timeline-span-${item.end-item.start+1} ${coach()?'season-editable':''}" title="${coach()?'Modifier · ':''}S${item.start}${item.end!==item.start?' à S'+item.end:''} · ${esc(item.label)}">${esc(item.label)}</${tag}>`;}).join('')}</div>`;
+}
+function seasonTimeline() {
+ const season=state.season||defaultSeason;
+ const monthStart=dateKey(new Date(month.getFullYear(),month.getMonth(),1));
+ const monthEnd=dateKey(new Date(month.getFullYear(),month.getMonth()+1,0));
+ const finalWeek=fromKey(seasonWeekDate(seasonWeekCount));finalWeek.setDate(finalWeek.getDate()+6);
+ const inSeason=monthEnd>=seasonWeekDate(1)&&monthStart<=dateKey(finalWeek);
+ const weekCells=Array.from({length:seasonWeekCount},(_,i)=>{
+  const key=seasonWeekDate(i+1),end=fromKey(key);end.setDate(end.getDate()+6);
+  const monthActive=key<=monthEnd&&dateKey(end)>=monthStart;
+  return `<button class="timeline-week ${monthActive?'in-month':''} ${seasonWeekForDate(selectedDate,season)?.number===i+1?'selected':''}" data-date="${key}" data-week="${i+1}" title="S${i+1} · ${esc(shortDate(key))} – ${esc(shortDate(dateKey(end)))}">S${i+1}<small>${esc(shortDate(key))}</small></button>`;
+ }).join('');
+ const loadCells=season.weeklyLoads.map((level,i)=>{
+  if(!level&&!coach())return '<span class="timeline-empty"></span>';
+  const tag=coach()?'button':'span';
+  return `<${tag} ${coach()?`type="button" data-season-week="${i+1}"`:''} class="timeline-load ${level?`load-${level}`:'load-empty'} ${coach()?'season-editable':''}" title="S${i+1} · ${level?'charge '+loadLabels[level]:'charge à renseigner'}${coach()?' · modifier':''}">${level?`<span>${'▮'.repeat({light:1,medium:2,high:3}[level])}</span><small>${loadLabels[level]}</small>`:'+'}</${tag}>`;
+ }).join('');
+ const stageItems=[...season.stages.map((item,index)=>({...item,category:'stages',index})),...season.seasonNotes.map((item,index)=>({...item,category:'seasonNotes',index}))].sort((a,b)=>a.start-b.start);
+ const competitionCells=Array.from({length:seasonWeekCount},(_,i)=>{
+  const index=season.competitions.findIndex(item=>item.week===i+1);
+  if(index<0)return '<span class="timeline-empty"></span>';
+  const item=season.competitions[index],tag=coach()?'button':'span';
+  return `<${tag} ${coach()?`type="button" data-season-category="competitions" data-season-index="${index}"`:''} class="timeline-competition ${coach()?'season-editable':''}" title="${coach()?'Modifier · ':''}S${item.week} · ${esc(item.label)}">${esc(item.label)}</${tag}>`;
+ }).join('');
+ return `<details class="card season-overview" ${inSeason?'open':''}><summary><span><span class="eyebrow">LA PLANIFICATION EN UN COUP D’ŒIL</span><strong>Repères jusqu’en août 2028</strong></span><small>Semaines, périodes, charge et événements · faire défiler →</small></summary><div class="season-tools"><p class="help">S1–S27 viennent de l’Excel 2026–2027. Les semaines suivantes sont libres pour le coach ; une case vide signifie « non renseigné ».</p>${coach()?'<button class="secondary" data-action="new-season-band">+ Ajouter un repère</button>':''}</div><div class="season-rail" id="season-rail" role="region" aria-label="Frise des semaines de la saison" tabindex="0"><div class="season-rail-inner"><div class="timeline-row timeline-weeks"><span class="timeline-label">Semaines</span>${weekCells}</div>${timelineBands('Période saison',season.generalPeriods,'general','generalPeriods')}${timelineBands('Cycle',season.trainingPeriods,'training','trainingPeriods')}${timelineBands('Intensité / volume',season.intensityPeriods,'intensity','intensityPeriods')}<div class="timeline-row"><span class="timeline-label">Charge</span>${loadCells}</div>${timelineBands('Vacances IDF',season.schoolHolidays,'holiday','schoolHolidays')}${timelineBands('Absences',season.absences||[],'absence','absences')}${timelineBands('Stages / notes',stageItems,'stage')}<div class="timeline-row"><span class="timeline-label">Compétitions</span>${competitionCells}</div></div></div></details>`;
+}
+function calendarDay(key) {
+ const dt=fromKey(key),items=daySessions(key),outside=dt.getMonth()!==month.getMonth()||dt.getFullYear()!==month.getFullYear();
+ const label=items.map(s=>{const load=sessionLoad(s,state.season);return s.title+(load?` (charge ${load.source==='week'?'de la semaine':'de la séance'} ${loadLabels[load.level]})`:'');}).join(', ')||'Aucune séance renseignée';
+ return `<button class="calendar-day ${outside?'outside-month':''} ${key===selectedDate?'selected':''} ${key===today()?'today':''}" data-date="${key}" aria-label="${esc(fullDate(key))} : ${esc(label)}" aria-pressed="${key===selectedDate}"><strong>${dt.getDate()}</strong>${items.map(s=>`<span class="event-label type-${s.type}"><span class="event-full">${s.slot&&s.slot!=='non-precise'?esc(slots[s.slot])+' · ':''}${esc(types[s.type])}</span><span class="event-short">${compactSlots[s.slot]?`<small>${esc(compactSlots[s.slot])}</small>`:''}${esc(compactTypes[s.type])}</span>${loadMarker(s)}</span>`).join('')}</button>`;
+}
+function calendarWeek(start) {
+ const key=dateKey(start),context=seasonWeekForDate(key,state.season);
+ const days=Array.from({length:7},(_,i)=>{const dt=new Date(start);dt.setDate(dt.getDate()+i);return dateKey(dt);});
+ const load=context?.load?`<span class="week-context-load load-${context.load}">Charge ${loadLabels[context.load]} <span aria-hidden="true">${'▮'.repeat({light:1,medium:2,high:3}[context.load])}</span></span>`:'';
+ const ribbons=[context?.holiday?`<span class="week-ribbon week-holiday">${esc(context.holiday.label)}</span>`:'',context?.absence?`<span class="week-ribbon week-absence">${esc(context.absence.label)}</span>`:'',context?.stage?`<span class="week-ribbon week-stage">${esc(context.stage.label)}</span>`:''].filter(Boolean).join('');
+ return `<div class="calendar-week"><div class="calendar-week-head"><strong>${context?`S${context.number}`:esc(shortDate(key))}</strong>${load}${context?.intensity?`<span class="week-context-intensity">${esc(context.intensity.label)}</span>`:''}${context?.competition?`<span class="week-context-competition">${esc(context.competition.label)}</span>`:''}${context?.note?`<span class="week-context-note">${esc(context.note.label)}</span>`:''}</div>${ribbons?`<div class="calendar-week-ribbons">${ribbons}</div>`:''}<div class="calendar-week-days">${days.map(calendarDay).join('')}</div></div>`;
+}
 function calendar() {
- const start=(month.getDay()+6)%7,count=new Date(month.getFullYear(),month.getMonth()+1,0).getDate();
- return `<section class="card"><div class="section-head"><div><p class="eyebrow">LE CALENDRIER DE L’ÉQUIPE</p><h2>${esc(month.toLocaleDateString('fr-FR',{month:'long',year:'numeric'}))}</h2></div><div class="actions"><button class="icon-button" data-action="prev-month" aria-label="Mois précédent">←</button><button class="icon-button" data-action="next-month" aria-label="Mois suivant">→</button></div></div><div class="legend">${Object.entries(types).map(([k,v])=>`<span><i class="dot type-${k}"></i>${esc(v)}</span>`).join('')}<span class="load-legend">▮ / ▮▮ / ▮▮▮ : charge légère / moyenne / élevée</span></div><div class="weekdays">${['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(d=>`<span>${d}</span>`).join('')}</div><div class="calendar-grid">${'<div class="calendar-day blank"></div>'.repeat(start)}${Array.from({length:count},(_,i)=>{const dt=new Date(month.getFullYear(),month.getMonth(),i+1),key=dateKey(dt),items=daySessions(key);return `<button class="calendar-day ${key===selectedDate?'selected':''} ${key===today()?'today':''}" data-date="${key}" aria-label="${esc(fullDate(key))} : ${esc(items.map(s=>{const load=sessionLoad(s);return s.title+(load?` (charge ${load.source==='week'?'de la semaine':'de la séance'} ${loadLabels[load.level]})`:'');}).join(', ')||'Aucune séance renseignée')}" aria-pressed="${key===selectedDate}"><strong>${i+1}</strong>${items.map(s=>`<span class="event-label type-${s.type}"><span class="event-full">${s.slot&&s.slot!=='non-precise'?esc(slots[s.slot])+' · ':''}${esc(types[s.type])}</span><span class="event-short">${compactSlots[s.slot]?`<small>${esc(compactSlots[s.slot])}</small>`:''}${esc(compactTypes[s.type])}</span>${loadMarker(s)}</span>`).join('')}</button>`;}).join('')}</div><p class="footer-note">Cliquez sur un jour pour consulter ${coach()?'ou ajouter ':''}ses séances.</p></section>`;
+ const first=new Date(month.getFullYear(),month.getMonth(),1),last=new Date(month.getFullYear(),month.getMonth()+1,0),monday=new Date(first);
+ monday.setDate(monday.getDate()-(monday.getDay()+6)%7);
+ const weeks=[];
+ while(monday<=last){weeks.push(calendarWeek(new Date(monday)));monday.setDate(monday.getDate()+7);}
+ return `${seasonTimeline()}<section class="card month-calendar"><div class="section-head"><div><p class="eyebrow">LE CALENDRIER DE L’ÉQUIPE</p><h2>${esc(month.toLocaleDateString('fr-FR',{month:'long',year:'numeric'}))}</h2></div><div class="actions"><button class="icon-button" data-action="prev-month" aria-label="Mois précédent">←</button><button class="icon-button" data-action="next-month" aria-label="Mois suivant">→</button></div></div><div class="legend">${Object.entries(types).map(([k,v])=>`<span><i class="dot type-${k}"></i>${esc(v)}</span>`).join('')}<span class="load-legend">▮ / ▮▮ / ▮▮▮ : charge légère / moyenne / élevée</span></div><div class="weekdays">${['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(d=>`<span>${d}</span>`).join('')}</div><div class="calendar-weeks">${weeks.join('')}</div><p class="footer-note">Cliquez sur un jour pour consulter ${coach()?'ou ajouter ':''}ses séances. Les périodes et événements de l’Excel sont consultables dans la frise ci-dessus.</p></section>`;
 }
 function trainingPage() {
  const items=daySessions(selectedDate);
  $('#main').innerHTML=`<div class="page-intro"><div><p class="eyebrow">${esc(fullDate(selectedDate))}</p><h1>${selectedDate===today()?'Aujourd’hui, sur la piste.':'Votre journée d’entraînement.'}</h1><p class="muted">${items.filter(s=>s.type!=='rest').length} séance(s) · ${esc(user.name)}</p></div><div class="actions"><button class="secondary" data-action="today">Aujourd’hui</button>${coach()?'<button data-action="new-session">+ Séance</button>':''}</div></div>${weekStrip()}<div id="daily-sessions">${items.length?items.map(sessionCard).join(''):'<section class="card empty-state"><h2>Aucune séance renseignée</h2><p>Le planning de cette journée n’a pas encore été renseigné.</p></section>'}</div>${calendar()}`;
+ const rail=$('#season-rail'),number=seasonWeekForDate(dateKey(new Date(month.getFullYear(),month.getMonth(),15)),state.season)?.number;
+ if(rail&&number){const target=rail.querySelector(`[data-week="${number}"]`);if(target)rail.scrollLeft=Math.max(0,target.offsetLeft-rail.clientWidth/2+target.clientWidth/2);}
 }
 function chronoPage() {
  $('#main').innerHTML=`<div class="page-intro"><div><p class="eyebrow">MON ESPACE PERSONNEL</p><h1>Mes chronos, mes allures.</h1><p class="muted">Ces références appartiennent uniquement à ${esc(user.name)}.</p></div><span class="pill">Privé</span></div>
@@ -172,6 +219,47 @@ function editSession(id) {
  const swap=$('#editor-form').elements.swapId;
  if(swap)swap.onchange=()=>{const other=state.sessions.find(s=>s.id===swap.value);if(other){$('#editor-form').elements.date.value=other.date;$('#editor-form').elements.slot.value=other.slot||'non-precise';swap.dataset.version=other.version;}};
 }
+function seasonWeekOptions(selected) {
+ return [2026,2027,2028].map(year=>`<optgroup label="${year}">${Array.from({length:seasonWeekCount},(_,i)=>i+1).filter(week=>fromKey(seasonWeekDate(week)).getFullYear()===year).map(week=>`<option value="${week}" ${selected===week?'selected':''}>S${week} · ${esc(shortDate(seasonWeekDate(week)))}</option>`).join('')}</optgroup>`).join('');
+}
+function editSeasonBand(category=null,index=null) {
+ if(!coach())return;
+ const original=JSON.parse(JSON.stringify(state.season));
+ const current=category!==null&&index!==null?original[category]?.[index]:null;
+ const initialCategory=category||'trainingPeriods';
+ const start=current?.week||current?.start||seasonWeekForDate(selectedDate,original)?.number||1;
+ const end=current?.end||start;
+ modal(current?'Modifier un repère de saison':'Ajouter un repère de saison',`<p class="help">Un repère couvre une ou plusieurs semaines entières. Pour changer ses dates, modifiez simplement la première et la dernière semaine.</p><label>Type d’information<select name="seasonCategory">${options(seasonKinds,initialCategory)}</select></label><div class="form-grid"><label>Première semaine<select name="seasonStart">${seasonWeekOptions(start)}</select></label><label class="season-end-field">Dernière semaine<select name="seasonEnd">${seasonWeekOptions(end)}</select></label></div><label>Libellé<input name="seasonLabel" maxlength="180" value="${esc(current?.label||'')}" placeholder="Ex. Préparation spécifique, stage à Saint-Brieuc…" required></label><p class="help">Une compétition est rattachée à une seule semaine. Les bandes d’un même type ne doivent pas se chevaucher.</p>${current?'<button type="button" class="text-button season-delete" id="delete-season-band">Supprimer ce repère</button>':''}`,async form=>{
+  const next=JSON.parse(JSON.stringify(original)),type=form.elements.seasonCategory.value;
+  if(current)next[category].splice(index,1);
+  const first=Number(form.elements.seasonStart.value),last=type==='competitions'?first:Number(form.elements.seasonEnd.value);
+  if(last<first)throw new Error('La dernière semaine doit suivre la première.');
+  const label=form.elements.seasonLabel.value.trim();
+  if(type==='competitions')next.competitions.push({week:first,label});
+  else next[type].push({start:first,end:last,label,tone:type===category?current?.tone||'custom':'custom'});
+  await api('/season','PUT',{...next,version:original.version});
+ });
+ const form=$('#editor-form'),type=form.elements.seasonCategory,endField=form.querySelector('.season-end-field');
+ const sync=()=>{const single=type.value==='competitions';endField.hidden=single;form.elements.seasonEnd.disabled=single;};
+ type.onchange=()=>{if(type.value==='schoolHolidays'&&!form.elements.seasonLabel.value.trim())form.elements.seasonLabel.value='Vacances scolaires IDF';sync();};
+ sync();
+ if(current)$('#delete-season-band').onclick=async()=>{
+  if(!confirm(`Supprimer « ${current.label} » de la frise pour tout le groupe ?`))return;
+  const next=JSON.parse(JSON.stringify(original));next[category].splice(index,1);
+  const button=$('#delete-season-band');button.disabled=true;$('#editor-error').textContent='';
+  try{await api('/season','PUT',{...next,version:original.version});$('#editor').close();state=await api('/state');render();toast('Repère supprimé pour toute l’équipe.');}
+  catch(e){$('#editor-error').textContent=e.message;button.disabled=false;}
+ };
+}
+function editSeasonLoad(week) {
+ if(!coach())return;
+ const original=JSON.parse(JSON.stringify(state.season));
+ const choices={'':'Non renseignée',light:'Légère',medium:'Moyenne',high:'Élevée'};
+ modal(`Charge de la semaine S${week}`,`<p class="help">${esc(shortDate(seasonWeekDate(week)))} · Charge hebdomadaire visible sur le calendrier et les séances, sauf lorsqu’une charge propre a été choisie dans une séance.</p><label>Charge prévue<select name="seasonLoad">${options(choices,original.weeklyLoads[week-1]||'')}</select></label>`,async form=>{
+  const next=JSON.parse(JSON.stringify(original));next.weeklyLoads[week-1]=form.elements.seasonLoad.value||null;
+  await api('/season','PUT',{...next,version:original.version});
+ });
+}
 function editContent(collection,id) {
  if(!coach())return;
  const item=id?state[collection].find(s=>s.id===id):{};
@@ -206,6 +294,8 @@ document.addEventListener('click',async event=>{
    if(!confirm(`${grant?'Nommer admin':'Retirer les droits admin de'} ${member.name} ${member.lastName} ? ${grant?'Ce rôle permet de nommer d’autres admins. Il remplace son rôle actuel.':'Le membre retrouvera son rôle précédent.'}`))return;
    await api('/members/'+encodeURIComponent(member.id)+'/admin','PUT',{action:button.dataset.adminAction,expectedRole:member.role});state=await api('/state');user=state.user;render();toast('Droits d’administration mis à jour.');return;
   }
+  if(button.dataset.seasonCategory)return editSeasonBand(button.dataset.seasonCategory,Number(button.dataset.seasonIndex));
+  if(button.dataset.seasonWeek)return editSeasonLoad(Number(button.dataset.seasonWeek));
   if(button.dataset.date)return selectDate(button.dataset.date);
   if(button.dataset.edit)return button.dataset.edit==='sessions'?editSession(button.dataset.id):editContent(button.dataset.edit,button.dataset.id);
   if(button.dataset.archive)return await archive(button.dataset.archive,button.dataset.id);
@@ -218,6 +308,7 @@ document.addEventListener('click',async event=>{
    case 'prev-month':month.setMonth(month.getMonth()-1);trainingPage();break;
    case 'next-month':month.setMonth(month.getMonth()+1);trainingPage();break;
    case 'new-session':editSession();break;
+   case 'new-season-band':editSeasonBand();break;
    case 'new-library':editContent('library');break;
    case 'new-info':editContent('info');break;
    case 'delete-account':deleteAccount();break;
