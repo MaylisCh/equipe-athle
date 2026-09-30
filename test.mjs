@@ -6,13 +6,27 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { once } from 'node:events';
-import { parseTime, targetTime, formatTime } from './core.mjs';
+import { parseTime, targetTime, predictReference, trainingTarget, formatTime } from './core.mjs';
 
 test('Chronos : formats, pourcentages, bornes et arrondi minute',()=>{
  assert.equal(parseTime('24,50'),24.5);assert.equal(parseTime('1:02,50'),62.5);
  assert.equal(parseTime(''),null);assert.throws(()=>parseTime('0'));assert.throws(()=>parseTime('-8'));assert.throws(()=>parseTime('1:70'));
  assert.equal(targetTime(24,80),30);assert.equal(targetTime(54,90),60);assert.equal(targetTime(24,0),null);
  assert.equal(formatTime(59.999),'1:00,00');
+});
+
+test('Courbe personnelle : chronos exacts, fatigue et tableaux corrigés du coach',()=>{
+ const times={100:12,200:24,400:54};
+ for(const [distance,time] of Object.entries(times))assert.equal(predictReference(times,Number(distance)).time,time);
+ const p250=predictReference(times,250);
+ assert.equal(p250.kind,'interpolé');assert.deepEqual(p250.anchors,[200,400]);
+ assert.ok(p250.time>30&&p250.time<32,'La fatigue augmente le temps du 250 m par rapport au prorata du 200 m.');
+ const target=trainingTarget(times,250,85);
+ assert.ok(Math.abs(target.targetTime-250/target.targetSpeed)<1e-10);
+ assert.ok(Math.abs(trainingTarget({500:63},500,85).targetTime-63/.85)<1e-10,'Le 500 m à 85 % ne reprend pas le bloc erroné à 80 %.');
+ assert.ok(Math.abs(trainingTarget({250:28},250,89).targetTime-28/.89)<1e-10,'Le 250 m à 89 % suit les formules plutôt que l’en-tête erroné.');
+ assert.equal(predictReference({200:24},100).kind,'extrapolé');
+ assert.equal(predictReference({},250),null);assert.equal(predictReference(times,30),null);
 });
 
 test('Activation du premier admin en production par identifiant',async t=>{

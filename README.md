@@ -27,14 +27,16 @@ Il faut maintenant utiliser l’adresse du serveur, et non ouvrir `index.html` p
 - Un jour importé comme repos peut recevoir une séance. Lorsqu’une séance active existe, la carte « Repos » initiale est masquée sans être supprimée.
 - Le coach peut créer, modifier, déplacer ou archiver une séance. Changer sa date suffit à déplacer son contenu. L’option « Échanger » permute les dates et créneaux de deux séances en une seule transaction.
 - Chaque séance comporte **Échauffement**, **Séance**, et une **Version 2** facultative, visible dans un encadré vert sans bouton.
-- Les allures sont des couples distance/pourcentage définis par le coach. Elles se calculent uniquement si le membre connaît sa référence sur la même distance.
+- Les allures sont des couples distance/pourcentage définis par le coach. Elles utilisent le chrono saisi sur la distance demandée ou, à défaut, la courbe personnelle estimée à partir des autres chronos (50 à 1 500 m).
 - Les notes coach ne sont transmises qu’aux comptes coach.
 
 ## Chronos
 
 Les références acceptées sont 50, 60, 80, 100, 125, 150, 200, 250, 300, 400, 500, 600, 800, 1000 et 1500 m. On peut laisser des champs vides. Formats : `54,32`, `54.32`, `1:02,50`.
 
-La formule est **temps cible = temps de référence / (pourcentage / 100)**. Elle s’applique à la même distance : 24 s sur 200 m donne 30 s à 80 %. Pas d’extrapolation automatique d’une distance à l’autre. Les pourcentages ambigus d’une séance ne sont pas transformés en cibles sans référence explicite du coach.
+Chaque chrono saisi est un point exact de la courbe personnelle. Entre deux chronos connus, le modèle interpole la fatigue ; en dehors des distances connues, il extrapole et l’interface signale cette incertitude. Les coefficients de secours pour 100–200, 200–400, 400–800 et 800–1 500 m utilisent les rapports de vitesse médians [KsA publiés ici](https://pmc.ncbi.nlm.nih.gov/articles/PMC12181339/) ; de 50 à 100 m, le profil d’accélération est une hypothèse (`exposant 0,90`). Ces coefficients ne sont pas des correspondances entre athlètes tirées du classeur : sa feuille **Temps** contient des grilles indépendantes par distance, pas de chronos appariés.
+
+Pour la distance demandée, le calcul suit la vitesse comme dans la feuille du coach : **vitesse de référence = distance / chrono connu ou estimé**, **vitesse cible = vitesse de référence × pourcentage / 100**, puis **temps cible = distance / vitesse cible**. Les pourcentages restent libres entre 0 et 150 %, avec des raccourcis à 80, 85 et 89 %. Si la référence est connue sur la même distance, les résultats correspondent aux tableaux du classeur, sauf ses erreurs de copie : les 10 lignes du bloc « 500 m à 85 % » y calculent 80 % ; un en-tête « 250 m à 85 % » couvre en fait un bloc calculé à 89 %. Le site suit le pourcentage choisi, sans reprendre ces erreurs. Les pourcentages ambigus d’une séance ne sont pas transformés en cibles sans référence explicite du coach.
 
 ## Bibliothèque et infos du groupe
 

@@ -18,6 +18,51 @@ export function targetTime(reference,percent) {
  if(!Number.isFinite(reference)||reference<=0||!Number.isFinite(percent)||percent<=0||percent>150)return null;
  return reference/(percent/100);
 }
+// Profil de fatigue de secours. Les rapports de vitesse entre distances
+// voisines viennent des médianes KsA (100–1500 m) ; sous 100 m, 0,90 est une
+// hypothèse prudente pour tenir compte de l'accélération initiale.
+const fatigueBreaks=[50,100,200,400,800,1500];
+const fatigueKsA=[null,0.992446,0.912,0.887940,0.921097];
+const fatigueLogTimes=[-0.90*Math.log(2),0];
+for(let i=2;i<fatigueBreaks.length;i++) {
+ fatigueLogTimes[i]=fatigueLogTimes[i-1]+Math.log(fatigueBreaks[i]/fatigueBreaks[i-1]/fatigueKsA[i-1]);
+}
+function defaultLogTime(distance) {
+ if(!Number.isFinite(distance)||distance<50||distance>1500)return null;
+ const right=fatigueBreaks.findIndex(d=>d>=distance);
+ if(fatigueBreaks[right]===distance)return fatigueLogTimes[right];
+ const left=right-1, exponent=(fatigueLogTimes[right]-fatigueLogTimes[left])/Math.log(fatigueBreaks[right]/fatigueBreaks[left]);
+ return fatigueLogTimes[left]+exponent*Math.log(distance/fatigueBreaks[left]);
+}
+export function predictReference(times,distance) {
+ const base=defaultLogTime(distance);
+ if(base===null)return null;
+ const known=Object.entries(times||{}).map(([d,time])=>({distance:Number(d),time:Number(time)}))
+  .filter(x=>defaultLogTime(x.distance)!==null&&Number.isFinite(x.time)&&x.time>0)
+  .sort((a,b)=>a.distance-b.distance);
+ if(!known.length)return null;
+ const direct=known.find(x=>x.distance===distance);
+ if(direct)return {time:direct.time,kind:'mesuré',anchors:[distance]};
+ const right=known.findIndex(x=>x.distance>distance);
+ const lower=right===-1?known.at(-1):right===0?known[0]:known[right-1];
+ const upper=right>0?known[right]:lower;
+ const correction=x=>Math.log(x.time)-defaultLogTime(x.distance);
+ let residual=correction(lower);
+ if(lower!==upper) {
+  const fraction=Math.log(distance/lower.distance)/Math.log(upper.distance/lower.distance);
+  residual+=(correction(upper)-residual)*fraction;
+ }
+ return {time:Math.exp(base+residual),kind:right>0?'interpolé':'extrapolé',anchors:lower===upper?[lower.distance]:[lower.distance,upper.distance]};
+}
+export function trainingTarget(times,distance,percent) {
+ if(!Number.isFinite(percent)||percent<=0||percent>150)return null;
+ const reference=predictReference(times,distance);
+ if(!reference)return null;
+ const referenceSpeed=distance/reference.time;
+ const targetSpeed=referenceSpeed*percent/100;
+ return {...reference,referenceSpeed,targetSpeed,targetTime:distance/targetSpeed};
+}
+export const formatSpeed = value => value==null?'—':`${value.toFixed(2).replace('.',',')} m/s`;
 export function formatTime(value) {
  if(value==null)return '—';
  const rounded=Math.round(value*100);
