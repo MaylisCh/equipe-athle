@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { once } from 'node:events';
-import { parseTime, targetTime, predictReference, trainingTarget, formatTime } from './core.mjs';
+import { parseTime, targetTime, predictReference, trainingTarget, equivalentIntensity, weeklyLoadForDate, sessionLoad, formatTime } from './core.mjs';
 
 test('Chronos : formats, pourcentages, bornes et arrondi minute',()=>{
  assert.equal(parseTime('24,50'),24.5);assert.equal(parseTime('1:02,50'),62.5);
@@ -27,6 +27,19 @@ test('Courbe personnelle : chronos exacts, fatigue et tableaux corrigés du coac
  assert.ok(Math.abs(trainingTarget({250:28},250,89).targetTime-28/.89)<1e-10,'Le 250 m à 89 % suit les formules plutôt que l’en-tête erroné.');
  assert.equal(predictReference({200:24},100).kind,'extrapolé');
  assert.equal(predictReference({},250),null);assert.equal(predictReference(times,30),null);
+});
+
+test('Plages fixes et charge hebdomadaire distincte de la charge de séance',()=>{
+ const intensity=equivalentIntensity({400:80},400,90,95);
+ assert.ok(Math.abs(intensity.min-80/95*100)<1e-10);
+ assert.ok(Math.abs(intensity.max-80/90*100)<1e-10);
+ assert.equal(equivalentIntensity({},400,90,95),null);
+ assert.equal(equivalentIntensity({400:80},400,95,90),null);
+ assert.equal(weeklyLoadForDate('2026-09-28'),'medium');
+ assert.deepEqual(sessionLoad({date:'2026-09-28'}),{level:'medium',source:'week'});
+ assert.deepEqual(sessionLoad({date:'2026-09-28',load:'high'}),{level:'high',source:'session'});
+ assert.equal(sessionLoad({date:'2026-09-28',load:'none'}),null);
+ assert.equal(weeklyLoadForDate('2028-08-01'),null);
 });
 
 test('Activation du premier admin en production par identifiant',async t=>{
@@ -93,9 +106,16 @@ test('Comptes indépendants, droits, éditions, échanges, conflits et persistan
  assert.equal((await request('/state','GET',undefined,owner)).json.user.name,'Maylis');
  assert.equal((await request('/sessions','POST',{...base,date:'2026-02-30'},admin)).status,400);
  const morning=(await request('/sessions','POST',base,admin)).json;
+ const ranged={...base,title:'400 m filles et garçons',load:'high',targets:[{distance:400,kind:'range',label:'Filles',minTime:90,maxTime:95},{distance:400,kind:'range',label:'Garçons',minTime:70,maxTime:80},{distance:200,kind:'percent',percent:80,label:'Tous'}]};
+ assert.equal((await request('/sessions','POST',{...ranged,targets:[{distance:400,kind:'range',minTime:95,maxTime:90}]},admin)).status,400);
+ const rangedCreated=(await request('/sessions','POST',ranged,admin)).json;
+ assert.equal(rangedCreated.load,'high');
+ const rangedState=(await request('/state','GET',undefined,alice)).json.sessions.find(s=>s.id===rangedCreated.id);
+ assert.equal(rangedState.targets[0].minTime,90);
+ assert.equal(rangedState.targets[1].label,'Garçons');
  const afternoon=(await request('/sessions','POST',{...base,title:'Musculation PM',type:'strength',slot:'apres-midi'},admin)).json;
  let shared=(await request('/state','GET',undefined,bob)).json;
- assert.equal(shared.sessions.filter(s=>s.date==='2026-10-02'&&s.type!=='rest').length,2);
+ assert.equal(shared.sessions.filter(s=>s.date==='2026-10-02'&&s.type!=='rest').length,3);
  const speed=original.sessions.find(s=>s.date==='2026-09-28'),strength=original.sessions.find(s=>s.date==='2026-09-30');
  assert.equal((await request('/sessions/'+encodeURIComponent(speed.id),'PUT',{...speed,date:strength.date,swapId:strength.id,swapVersion:strength.version},admin)).status,200);
  shared=(await request('/state','GET',undefined,alice)).json;

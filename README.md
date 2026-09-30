@@ -27,7 +27,8 @@ Il faut maintenant utiliser l’adresse du serveur, et non ouvrir `index.html` p
 - Un jour importé comme repos peut recevoir une séance. Lorsqu’une séance active existe, la carte « Repos » initiale est masquée sans être supprimée.
 - Le coach peut créer, modifier, déplacer ou archiver une séance. Changer sa date suffit à déplacer son contenu. L’option « Échanger » permute les dates et créneaux de deux séances en une seule transaction.
 - Chaque séance comporte **Échauffement**, **Séance**, et une **Version 2** facultative, visible dans un encadré vert sans bouton.
-- Les allures sont des couples distance/pourcentage définis par le coach. Elles utilisent le chrono saisi sur la distance demandée ou, à défaut, la courbe personnelle estimée à partir des autres chronos (50 à 1 500 m).
+- Le coach peut ajouter, sur une même séance, des cibles distance/pourcentage et des plages fixes de temps. Une plage peut porter une étiquette libre (« Filles », « Garçons », « Tous »). Les deux plages sont visibles par tous ; le site ne déduit pas le groupe d’un athlète. Une plage fixe reste la consigne du coach, avec en complément son intensité équivalente calculée sur la courbe personnelle (50 à 1 500 m) si des chronos sont renseignés.
+- La feuille annuelle de l’Excel indique une **charge par semaine**, non un indice individuel pour chaque séance. Le site reprend ce niveau comme contexte « Charge semaine : légère / moyenne / élevée » dans les séances et sous forme de 1, 2 ou 3 barres dans le calendrier. Le coach peut choisir une charge propre à une séance dans l’éditeur, ou masquer l’indication. Les couleurs du type de séance restent indépendantes. Au-delà des semaines renseignées dans la feuille, aucune charge n’est inventée.
 - Les notes coach ne sont transmises qu’aux comptes coach.
 
 ## Chronos

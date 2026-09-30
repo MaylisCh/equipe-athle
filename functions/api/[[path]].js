@@ -59,11 +59,20 @@ function recordData(collection,body) {
   if(!TYPES.includes(body.type))error('Type de séance invalide.');
   if(!['non-precise','matin','apres-midi','soir'].includes(body.slot||'non-precise'))error('Créneau invalide.');
   Object.assign(item,{date:validateDate(body.date),type:body.type,slot:body.slot||'non-precise'});
+  if(!['auto','none','light','medium','high'].includes(body.load||'auto'))error('Charge de séance invalide.');
+  item.load=body.load||'auto';
   for(const key of ['warmup','workout','v2','coachNote','cycle'])item[key]=str(body[key]??'',key);
   if(!Array.isArray(body.targets)||body.targets.length>20)error('Allures invalides.');
   item.targets=body.targets.map(t=>{
-   if(!Number.isInteger(t.distance)||t.distance<=0||t.distance>10000||typeof t.percent!=='number'||!Number.isFinite(t.percent)||t.percent<=0||t.percent>150)error('Distance ou pourcentage invalide.');
-   return {distance:t.distance,percent:t.percent};
+   if(!Number.isInteger(t.distance)||t.distance<=0||t.distance>10000)error('Distance cible invalide.');
+   const label=str(t.label||'','Groupe cible',60);
+   if(t.kind==='range'){
+    if(typeof t.minTime!=='number'||typeof t.maxTime!=='number'||!Number.isFinite(t.minTime)||!Number.isFinite(t.maxTime)||t.minTime<=0||t.maxTime<t.minTime||t.maxTime>86400)error('Plage de temps invalide : la borne finale doit être supérieure ou égale à la première.');
+    return {distance:t.distance,kind:'range',label,minTime:t.minTime,maxTime:t.maxTime};
+   }
+   if(t.kind&&t.kind!=='percent')error('Type de cible invalide.');
+   if(typeof t.percent!=='number'||!Number.isFinite(t.percent)||t.percent<=0||t.percent>150)error('Pourcentage invalide.');
+   return {distance:t.distance,kind:'percent',label,percent:t.percent};
   });
  } else {
   item.body=str(body.body,'Texte',20000,true);
