@@ -1,4 +1,4 @@
-const CACHE='equipe-athle-v7';
+const CACHE='equipe-athle-v8';
 const SHELL=['/','/index.html','/app.js','/core.mjs','/season.mjs','/style.css','/layout.css','/calendar.css','/manifest.webmanifest','/icon.svg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));

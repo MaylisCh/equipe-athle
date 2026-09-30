@@ -1,3 +1,6 @@
+.week-navigation{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 9px}
+.week-navigation span{font-size:.76rem;font-weight:750;color:var(--muted);text-align:center}
+.week-navigation .icon-button{font-size:1.05rem;padding:5px 12px;min-width:40px}
 .season-overview{overflow:hidden;padding:0}
 .season-overview>summary{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:23px 28px;cursor:pointer;list-style:none}
 .season-overview>summary::-webkit-details-marker{display:none}
@@ -73,6 +76,7 @@
 .month-calendar .calendar-day.outside-month:has(.event-label){background:#f5f6f1}
 .month-calendar .calendar-day.selected:has(.event-label){background:#edf2e5}
 @media(max-width:760px){
+ .week-navigation span{font-size:.69rem}
  .season-overview>summary{padding:18px 19px;align-items:flex-start;flex-direction:column;gap:5px}
  .season-overview>summary strong{font-size:1.08rem}
  .season-overview>summary small{text-align:left}

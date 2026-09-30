@@ -35,6 +35,11 @@ try {
  await coach.locator('.timeline-stage').filter({hasText:'Repère ajouté par le coach'}).click();await coach.locator('#editor [name=seasonLabel]').fill('Repère mis à jour par le coach');await coach.locator('#editor').getByRole('button',{name:'Enregistrer pour l’équipe'}).click();await expect(coach.locator('.timeline-stage')).toContainText(['Repère mis à jour par le coach','Stage','Noël + NA']);
  const athlete=await newPage();await athlete.goto(origin+'/#inscription');await athlete.locator('[name=name]').fill('Camille');await athlete.locator('[name=lastName]').fill('Martin');await athlete.locator('[name=phone]').fill('0600000000');await athlete.locator('[name=email]').fill('camille');
  await expect(athlete.locator('[name=coach]')).not.toBeChecked();await athlete.getByRole('button',{name:'Créer mon compte'}).click();await expect(athlete.locator('#daily-sessions')).toBeVisible();
+ await expect(athlete).toHaveTitle(/Équipe 400\/4H/);await expect(athlete.locator('.brand')).toContainText('Équipe 400/4H');
+ assert.equal(await athlete.evaluate(()=>!!(document.querySelector('.month-calendar').compareDocumentPosition(document.querySelector('.season-overview'))&Node.DOCUMENT_POSITION_FOLLOWING)),true,'Le calendrier mensuel précède la frise.');
+ await expect(athlete.locator('.season-overview summary')).toHaveText('La planification en un coup d’œil');
+ await athlete.getByRole('button',{name:'Semaine suivante'}).click();await expect(athlete.locator('.page-intro .eyebrow')).toContainText('mardi 6 octobre 2026');
+ await athlete.getByRole('button',{name:'Semaine précédente'}).click();await expect(athlete.locator('.page-intro .eyebrow')).toContainText('mardi 29 septembre 2026');
  await expect(athlete.locator('.timeline-general')).toHaveCount(3);await expect(athlete.locator('.timeline-training')).toHaveCount(4);await expect(athlete.locator('.timeline-holiday')).toHaveCount(3);await expect(athlete.locator('.timeline-competition')).toHaveCount(7);
  await expect(athlete.locator('.calendar-week')).toHaveCount(5);await expect(athlete.locator('.timeline-stage')).toContainText(['Repère mis à jour par le coach','Stage','Noël + NA']);await expect(athlete.locator('.timeline-load').filter({hasText:'élevée'})).not.toHaveCount(0);
  const timelineAlignment=await athlete.evaluate(()=>{

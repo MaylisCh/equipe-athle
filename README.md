@@ -1,4 +1,4 @@
-# Équipe Athlé
+# Équipe 400/4H
 
 ## Ouvrir le site sur ce Mac
 
@@ -21,6 +21,7 @@ Il faut maintenant utiliser l’adresse du serveur, et non ouvrir `index.html` p
 
 - Planning daté : les journées importées vont du 28 septembre 2026 au 23 janvier 2027. Une journée vide signifie « aucune séance renseignée », pas nécessairement repos.
 - La vue initiale sélectionne la date courante. Le calendrier et les boutons de semaine permettent de sélectionner une autre date.
+- Les flèches autour de la semaine de séances passent à la semaine précédente ou suivante en conservant le même jour de la semaine. Le calendrier mensuel apparaît avant la frise « La planification en un coup d’œil ».
 - Le calendrier peut avancer sans limite, donc jusqu’en août 2028 et au-delà. Aucune séance n’est inventée : les dates sans contenu restent vides et le coach peut y ajouter des séances.
 - La frise au-dessus du mois retranscrit la première feuille `20262027` pour S1–S27 : périodes générales et d’entraînement, blocs intensité/volume, charge hebdomadaire, vacances scolaires IDF, stage S17, note « Noël + NA » et compétitions indiquées. La ligne « Absences » est présente mais initialement vide, comme dans le classeur. La frise continue, vide par défaut, jusqu’à S105 (fin août 2028), afin que le coach puisse préparer la suite. Les bandes sont continues sur les semaines couvertes. On peut faire défiler la frise horizontalement et toucher une semaine pour ouvrir son lundi. Le mois regroupe les jours par semaine, avec des rappels de charge, intensité, vacances, stage et compétition ; les jours restent cliquables. Les plages de l’Excel sont hebdomadaires, donc aucune date précise de vacances ou de compétition n’est inventée.
 - Un coach peut cliquer sur une bande pour modifier son libellé et ses semaines, ou sur une case de charge pour la changer. Le bouton **+ Ajouter un repère** crée période, cycle, bloc intensité/volume, vacances, absence, stage, note ou compétition. Les suppressions demandent confirmation. Ces repères sont communs à l’équipe, synchronisés comme les séances ; les athlètes ne peuvent pas les modifier. Deux éditions concurrentes ne s’écrasent pas silencieusement.

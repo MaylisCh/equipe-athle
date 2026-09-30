@@ -297,5 +297,5 @@ async function handle(req,res) {
 }
 const server=http.createServer(handle);
 server.requestTimeout=15000;
-server.listen(PORT,HOST,()=>console.log(`Équipe Athlé : ${ORIGIN}\n${hasUsers()?'Connectez-vous avec votre identifiant.':'Profil admin Maylis Chancerelle prêt : choisissez un identifiant lors de la première ouverture.'}`));
+server.listen(PORT,HOST,()=>console.log(`Équipe 400/4H : ${ORIGIN}\n${hasUsers()?'Connectez-vous avec votre identifiant.':'Profil admin Maylis Chancerelle prêt : choisissez un identifiant lors de la première ouverture.'}`));
 for(const signal of ['SIGINT','SIGTERM']) process.on(signal,()=>server.close(()=>{db.close();process.exit(0);}));
