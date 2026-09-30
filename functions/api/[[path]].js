@@ -123,14 +123,16 @@ async function handle(request,db) {
    if(!reserved)error('Profil administrateur absent.',409);
    const duplicate=await stmt(db,'SELECT id FROM users WHERE email=? AND id!=?',email,reserved.id).first();
    if(duplicate)error('Cet identifiant est déjà utilisé.',409);
-   await db.batch([stmt(db,'UPDATE users SET email=?,name=?,last_name=?,phone=? WHERE id=?',email,name,lastName,phone,reserved.id),db.prepare("UPDATE meta SET value=1 WHERE key='setup_complete'"),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")]);
+   try{await db.batch([stmt(db,'UPDATE users SET email=?,name=?,last_name=?,phone=? WHERE id=?',email,name,lastName,phone,reserved.id),db.prepare("UPDATE meta SET value=1 WHERE key='setup_complete'"),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")]);}
+   catch(e){if(/UNIQUE constraint failed: users\.email/i.test(String(e)))error('Cet identifiant est déjà utilisé.',409);throw e;}
    return json(await session(db,{...reserved,email,name,last_name:lastName,phone}),201);
   }
   if(await stmt(db,'SELECT id FROM users WHERE email=?',email).first())error('Cet identifiant est déjà utilisé.',409);
   const role=body.coach?'coach':'athlete';
   const user={id:crypto.randomUUID(),email,name,last_name:lastName,phone,role,account_version:1};
   const actions=[stmt(db,'INSERT INTO users(id,email,name,role,last_name,phone) VALUES(?,?,?,?,?,?)',user.id,email,name,role,lastName,phone),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")];
-  await db.batch(actions);
+  try{await db.batch(actions);}
+  catch(e){if(/UNIQUE constraint failed: users\.email/i.test(String(e)))error('Cet identifiant est déjà utilisé.',409);throw e;}
   return json(await session(db,user),201);
  }
  if(!ctx)error('Connectez-vous pour accéder à l’équipe.',401);
@@ -157,9 +159,13 @@ async function handle(request,db) {
  }
  if(method==='PUT'&&path==='/api/account'){
   if('role' in body)error('Le rôle ne se modifie pas dans les réglages personnels.',403);
+  const email=str(body.email,'Identifiant',180,true).toLowerCase();
   const name=str(body.name,'Prénom',80,true),lastName=str(body.lastName||'','Nom',80),phone=str(body.phone||'','Téléphone',40);
-  const result=await stmt(db,'UPDATE users SET name=?,last_name=?,phone=?,account_version=account_version+1 WHERE id=? AND account_version=?',name,lastName,phone,ctx.id,body.version).run();
-  if(!result.meta.changes)error('Ce profil a été modifié ailleurs. Rechargez la page.',409);
+  const result=await stmt(db,'UPDATE users SET email=?,name=?,last_name=?,phone=?,account_version=account_version+1 WHERE id=? AND account_version=? AND NOT EXISTS (SELECT 1 FROM users AS other WHERE other.email=? AND other.id<>?)',email,name,lastName,phone,ctx.id,body.version,email,ctx.id).run();
+  if(!result.meta.changes){
+   if(await stmt(db,'SELECT id FROM users WHERE email=? AND id<>?',email,ctx.id).first())error('Cet identifiant est déjà utilisé.',409);
+   error('Ce profil a été modifié ailleurs. Rechargez la page.',409);
+  }
   await db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();return json({ok:true});
  }
  if(method==='DELETE'&&path==='/api/account'){

@@ -219,10 +219,12 @@ async function handle(req,res) {
   }
   if(req.method==='PUT' && path==='/api/account') {
    if('role' in body)fail('Le rôle ne se modifie pas dans les réglages personnels.',403);
+   const email=text(body.email,'Identifiant',180,true).toLowerCase();
    const name=text(body.name,'Prénom',80,true),lastName=text(body.lastName||'','Nom',80),phone=text(body.phone||'','Téléphone',40);
    atomic(()=>{
     const current=db.prepare('SELECT account_version FROM users WHERE id=?').get(ctx.id);versionCheck(current.account_version,body.version);
-    db.prepare('UPDATE users SET name=?,last_name=?,phone=?,account_version=account_version+1 WHERE id=?').run(name,lastName,phone,ctx.id);bump();
+    if(db.prepare('SELECT id FROM users WHERE email=? AND id<>?').get(email,ctx.id))fail('Cet identifiant est déjà utilisé.',409);
+    db.prepare('UPDATE users SET email=?,name=?,last_name=?,phone=?,account_version=account_version+1 WHERE id=?').run(email,name,lastName,phone,ctx.id);bump();
    });reply({ok:true});return;
   }
   if(req.method==='DELETE' && path==='/api/account') {

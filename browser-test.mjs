@@ -60,8 +60,10 @@ try {
  await athlete.screenshot({path:join(import.meta.dirname,'test-results/athlete-mobile.png'),fullPage:true});
  await athlete.reload();await expect(athlete.getByRole('button',{name:'Se connecter',exact:true})).toBeVisible();await expect(athlete.locator('#navigation')).toBeHidden();
  await athlete.locator('[name=email]').fill('camille');await athlete.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(athlete.locator('#daily-sessions')).toBeVisible();
- await athlete.getByRole('button',{name:'☰ Menu'}).click();await nav(athlete,'reglages');await athlete.getByRole('button',{name:'Supprimer mon profil',exact:true}).click();
- await athlete.locator('#editor [name=identifier]').fill('camille');await athlete.locator('#editor [name=confirm]').check();await athlete.getByRole('button',{name:'Supprimer définitivement mon profil',exact:true}).click();await expect(athlete.getByRole('button',{name:'Se connecter',exact:true})).toBeVisible();
+ await athlete.getByRole('button',{name:'☰ Menu'}).click();await nav(athlete,'reglages');await athlete.locator('#settings-form [name=email]').fill('coach-test');await athlete.getByRole('button',{name:'Enregistrer mes réglages'}).click();await expect(athlete.locator('#settings-error')).toContainText('déjà utilisé');
+ await athlete.locator('#settings-form [name=email]').fill('camille-nouvelle');await athlete.getByRole('button',{name:'Enregistrer mes réglages'}).click();await expect(athlete.locator('#settings-form [name=email]')).toHaveValue('camille-nouvelle');
+ await athlete.getByRole('button',{name:'Supprimer mon profil',exact:true}).click();
+ await athlete.locator('#editor [name=identifier]').fill('camille-nouvelle');await athlete.locator('#editor [name=confirm]').check();await athlete.getByRole('button',{name:'Supprimer définitivement mon profil',exact:true}).click();await expect(athlete.getByRole('button',{name:'Se connecter',exact:true})).toBeVisible();
  await expect(admin.getByRole('button',{name:'Supprimer mon profil',exact:true})).toBeDisabled();
  await expect(coach.getByRole('button',{name:'+ Séance',exact:true})).toBeVisible();
  assert.deepEqual(errors,[]);console.log('Parcours navigateur OK : admin/coach/athlète dans des onglets indépendants, chronos, séances multiples, déplacement, contenus, synchronisation, annuaire, transmission admin, connexion obligatoire et mobile.');

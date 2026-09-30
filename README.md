@@ -49,7 +49,7 @@ Les modifications sont enregistrées dans la base commune et récupérées autom
 
 Après connexion, le site affiche toujours le planning. Les boutons de navigation sont dans la barre latérale sur ordinateur ; sur téléphone, le bouton « Menu » ouvre la liste des pages.
 
-**Réglages** permet de modifier uniquement ses propres prénom, nom et téléphone et de consulter son rôle admin/coach/athlète. Le rôle n’est pas modifiable depuis le formulaire personnel.
+**Réglages** permet de modifier uniquement ses propres identifiant de connexion, prénom, nom et téléphone et de consulter son rôle admin/coach/athlète. Le rôle n’est pas modifiable depuis le formulaire personnel. Un identifiant déjà utilisé est refusé ; après un changement, il faut utiliser le nouvel identifiant pour se reconnecter. Les chronos et le rôle restent liés au même profil.
 
 Un **admin** gère les droits d’administration ; il n’édite pas les séances. Un **coach** édite les contenus communs. Chaque profil, admin compris, a ses propres chronos.
 
