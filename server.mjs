@@ -131,7 +131,7 @@ async function bodyJSON(req) {
 }
 const allowedStatic = new Map([
  ['/', ['index.html','text/html']], ['/index.html',['index.html','text/html']],
- ['/app.js',['app.js','text/javascript']], ['/core.mjs',['core.mjs','text/javascript']], ['/season.mjs',['season.mjs','text/javascript']], ['/style.css',['style.css','text/css']], ['/layout.css',['layout.css','text/css']], ['/calendar.css',['calendar.css','text/css']], ['/service-worker.js',['service-worker.js','text/javascript']], ['/manifest.webmanifest',['manifest.webmanifest','application/manifest+json']], ['/icon.svg',['icon.svg','image/svg+xml']]
+ ['/app.js',['app.js','text/javascript']], ['/core.mjs',['core.mjs','text/javascript']], ['/season.mjs',['season.mjs','text/javascript']], ['/style.css',['style.css','text/css']], ['/layout.css',['layout.css','text/css']], ['/calendar.css',['calendar.css','text/css']], ['/service-worker.js',['service-worker.js','text/javascript']], ['/manifest.webmanifest',['manifest.webmanifest','application/manifest+json']], ['/puc-logo.png',['puc-logo.png','image/png']]
 ]);
 async function handle(req,res) {
  res.setHeader('Cache-Control','no-store');

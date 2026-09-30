@@ -23,6 +23,9 @@ try {
  const newPage=async()=>{const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));return p;};
  const nav=async(p,hash)=>{await p.locator(`#navigation a[href="#${hash}"]`).click();};
  const admin=await newPage();await admin.goto(origin);
+ await expect(admin.locator('.brand-logo')).toBeVisible();
+ assert.equal(await admin.locator('.brand-logo').evaluate(img=>img.complete&&img.naturalWidth===300),true,'Le logo du PUC doit se charger');
+ assert.equal((await (await fetch(origin+'/puc-logo.png')).headers.get('content-type')).split(';')[0],'image/png');
  await admin.getByRole('link',{name:'Maylis : activer mon compte admin'}).click();
  await expect(admin.locator('[name=name]')).toHaveValue('Maylis');await expect(admin.locator('[name=lastName]')).toHaveValue('Chancerelle');
  await admin.getByRole('button',{name:'Activer mon compte admin'}).click();
