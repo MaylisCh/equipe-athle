@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { library, info } from './content.mjs';
 import { defaultSeason, normalizeSeason } from './season.mjs';
+import { initializeCommunity, passwordHash, passwordMatches, communityState, communityAction, syncSessionCompetition } from './community.mjs';
+import { sqliteD1 } from './sqlite-d1.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DATA = process.env.ATHLE_DATA_DIR || join(ROOT, 'data');
@@ -104,6 +106,8 @@ function atomic(action) {
  db.exec('BEGIN IMMEDIATE');
  try {const result=action();db.exec('COMMIT');return result;} catch(e){db.exec('ROLLBACK');throw e;}
 }
+const featureDB=sqliteD1(db);
+await initializeCommunity(featureDB);
 const limits = new Map();
 function throttle(key) {
  const now=Date.now();
@@ -131,6 +135,8 @@ async function bodyJSON(req) {
 }
 const allowedStatic = new Map([
  ['/', ['index.html','text/html']], ['/index.html',['index.html','text/html']],
+ ['/community-core.mjs',['community-core.mjs','text/javascript']],
+ ['/community.css',['community.css','text/css']],
  ['/app.js',['app.js','text/javascript']], ['/core.mjs',['core.mjs','text/javascript']], ['/season.mjs',['season.mjs','text/javascript']], ['/style.css',['style.css','text/css']], ['/layout.css',['layout.css','text/css']], ['/calendar.css',['calendar.css','text/css']], ['/service-worker.js',['service-worker.js','text/javascript']], ['/manifest.webmanifest',['manifest.webmanifest','application/manifest+json']], ['/puc-logo.png',['puc-logo.png','image/png']]
 ]);
 async function handle(req,res) {
@@ -163,14 +169,14 @@ async function handle(req,res) {
   }
   if(req.method==='POST' && ['/api/login','/api/setup','/api/register'].includes(path)) {
    throttle(req.socket.remoteAddress);
-   const email=text(body.email,'Identifiant',180,true).toLowerCase();
+   const email=text(body.email,'Identifiant',180,true);
    if (path==='/api/login') {
     const user=db.prepare('SELECT * FROM users WHERE email=?').get(email);
-    if(!user || (user.role==='admin' && !hasUsers())) fail('Identifiant inconnu. Inscrivez-vous pour créer votre profil.',401);
+    if(!user || (user.role==='admin' && !hasUsers()) || !await passwordMatches(featureDB,user,body.password)) fail('Identifiant ou mot de passe incorrect.',401);
     reply(loginCookie(res,user));return;
    }
    const name=text(body.name,'Prénom',80,true);
-   const lastName=text(body.lastName||'','Nom',80),phone=text(body.phone||'','Téléphone',40);
+   const lastName=text(body.lastName||'','Nom',80),phone=text(body.phone||'','Téléphone',40),password=await passwordHash(body.password);
    const user=atomic(()=>{
     let role='athlete';
     if(path==='/api/setup') {
@@ -182,12 +188,14 @@ async function handle(req,res) {
      if(!reserved)fail('Aucun compte administrateur en attente.',403);
      if(db.prepare('SELECT id FROM users WHERE email=? AND id!=?').get(email,reserved.id))fail('Cet identifiant est déjà utilisé.',409);
      db.prepare('UPDATE users SET email=?,name=?,last_name=?,phone=? WHERE id=?').run(email,name,lastName,phone,reserved.id);
+     db.prepare('UPDATE account_credentials SET password_hash=?,initial_identifier=NULL,provisional=0,version=version+1 WHERE user_id=?').run(password,reserved.id);
      db.prepare("UPDATE meta SET value=1 WHERE key='setup_complete'").run();bump();
      return {...reserved,email,name,last_name:lastName,phone};
     }
     if(db.prepare('SELECT id FROM users WHERE email=?').get(email))fail('Cet identifiant est déjà utilisé.',409);
     const user={id:randomUUID(),email,name,role,last_name:lastName,phone};
     db.prepare('INSERT INTO users(id,email,name,password,role,last_name,phone) VALUES(?,?,?,?,?,?,?)').run(user.id,email,name,'',user.role,lastName,phone);
+    db.prepare('INSERT INTO account_credentials(user_id,password_hash,provisional) VALUES(?,?,0)').run(user.id,password);
     bump();
     return user;
    });
@@ -198,7 +206,7 @@ async function handle(req,res) {
    db.prepare('DELETE FROM auth WHERE token=?').run(ctx.token);reply({ok:true});return;
   }
   if(req.method==='GET' && path==='/api/state') {
-   const result={revision:db.prepare("SELECT value FROM meta WHERE key='revision'").get().value,user:publicUser(ctx),members:db.prepare('SELECT id,name,last_name AS lastName,phone,role FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE').all(),profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[],season:null};
+   const result={revision:db.prepare("SELECT value FROM meta WHERE key='revision'").get().value,user:publicUser(ctx),members:db.prepare('SELECT id,name,last_name AS lastName,phone,role FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE').all(),profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[],competitions:[],season:null,...await communityState(featureDB,ctx)};
    for(const row of db.prepare('SELECT * FROM records WHERE archived=0 ORDER BY rowid').all()) {
     const item={...JSON.parse(row.data),version:row.version};
     if(row.collection==='season'){result.season=item;continue;}
@@ -222,7 +230,7 @@ async function handle(req,res) {
   }
   if(req.method==='PUT' && path==='/api/account') {
    if('role' in body)fail('Le rôle ne se modifie pas dans les réglages personnels.',403);
-   const email=text(body.email,'Identifiant',180,true).toLowerCase();
+   const email=text(body.email,'Identifiant',180,true);
    const name=text(body.name,'Prénom',80,true),lastName=text(body.lastName||'','Nom',80),phone=text(body.phone||'','Téléphone',40);
    atomic(()=>{
     const current=db.prepare('SELECT account_version FROM users WHERE id=?').get(ctx.id);versionCheck(current.account_version,body.version);
@@ -238,6 +246,7 @@ async function handle(req,res) {
     const member=db.prepare('SELECT role FROM users WHERE id=?').get(ctx.id);
     if(member.role==='admin' && db.prepare("SELECT COUNT(*) AS count FROM users WHERE role='admin'").get().count<=1)fail('Nommez un autre administrateur avant de supprimer votre profil.',409);
     db.prepare('DELETE FROM auth WHERE user_id=?').run(ctx.id);
+    for(const table of ['account_credentials','session_comments','competition_signups'])db.prepare(`DELETE FROM ${table} WHERE user_id=?`).run(ctx.id);
     db.prepare('DELETE FROM users WHERE id=?').run(ctx.id);bump();
    });reply({ok:true});return;
   }
@@ -263,6 +272,8 @@ async function handle(req,res) {
     return {ok:true,role:nextRole};
    });reply(result);return;
   }
+  const community=await communityAction(featureDB,ctx,path,req.method,body);
+  if(community){reply(community,req.method==='POST'?201:200);return;}
   if(ctx.role!=='coach')fail('Cette action est réservée au coach.',403);
   if(req.method==='PUT'&&path==='/api/season'){
    let data;try{data=normalizeSeason(body);}catch(e){fail(e.message);}
@@ -274,7 +285,7 @@ async function handle(req,res) {
   const [,collection,encodedId]=match, id=encodedId?decodeURIComponent(encodedId):null;
   if(req.method==='POST' && !id) {
    const item={...recordData(collection,body),id:randomUUID(),version:1};
-   atomic(()=>{db.prepare('INSERT INTO records(collection,id,data) VALUES(?,?,?)').run(collection,item.id,JSON.stringify(item));bump();});reply(item,201);return;
+   atomic(()=>{db.prepare('INSERT INTO records(collection,id,data) VALUES(?,?,?)').run(collection,item.id,JSON.stringify(item));bump();});if(collection==='sessions')await syncSessionCompetition(featureDB,item);reply(item,201);return;
   }
   if(req.method==='PUT' && id) {
    const result=atomic(()=>{
@@ -287,7 +298,7 @@ async function handle(req,res) {
      saveRecord('sessions',{...other,date:old.date,slot:old.slot||'non-precise',version:other.version+1});
     }
     saveRecord(collection,item);bump();return item;
-   });reply(result);return;
+   });if(collection==='sessions')await syncSessionCompetition(featureDB,result);reply(result);return;
   }
   if(req.method==='DELETE' && id) {
    atomic(()=>{const old=readRecord(collection,id);versionCheck(old.version,body.version);db.prepare('UPDATE records SET archived=1,version=version+1 WHERE collection=? AND id=?').run(collection,id);bump();});reply({ok:true});return;

@@ -77,7 +77,7 @@ test('Activation du premier admin en production par identifiant',async t=>{
  const auth=await (await fetch(base+'/api/auth')).json();
  assert.equal(auth.setup,true);assert.equal(auth.setupCodeRequired,false);
  const headers={Origin:origin,'Content-Type':'application/json'};
- const response=await fetch(base+'/api/setup',{method:'POST',headers,body:JSON.stringify({email:'maylis',name:'Maylis',lastName:'Chancerelle'})});
+ const response=await fetch(base+'/api/setup',{method:'POST',headers,body:JSON.stringify({email:'maylis',password:'x',name:'Maylis',lastName:'Chancerelle'})});
  assert.equal(response.status,201,logs);
  assert.equal((await response.json()).user.role,'admin');
 });
@@ -98,14 +98,14 @@ test('Comptes indépendants, droits, éditions, échanges, conflits et persistan
   const response=await fetch(origin+'/api'+path,{method,headers:{Origin:origin,'Content-Type':'application/json',...(session?{Authorization:`Bearer ${session.accessToken}`,'X-CSRF-Token':session.csrf}:{})},body:body===undefined?undefined:JSON.stringify(body)});
   const json=await response.json();return {status:response.status,json};
  }
- const credentials=(email)=>({email,name:email});
+ const credentials=(email)=>({email,name:email,password:'x'});
  let result=await request('/state');assert.equal(result.status,401);
  const owner=(await request('/setup','POST',{...credentials('maylis'),name:'Maylis',lastName:'Chancerelle'})).json;assert.equal(owner.user.role,'admin');
  assert.equal((await request('/setup','POST',credentials('intrus'))).status,403);
  const admin=(await request('/register','POST',{...credentials('coach'),coach:true})).json;assert.equal(admin.user.role,'coach');
  const alice=(await request('/register','POST',{...credentials('alice'),coach:false,role:'admin'})).json;
  assert.equal(alice.user.role,'athlete');
- const duplicateRegistration=await request('/register','POST',credentials('ALICE'));
+ const duplicateRegistration=await request('/register','POST',credentials('alice'));
  assert.equal(duplicateRegistration.status,409);
  assert.match(duplicateRegistration.json.error,/déjà utilisé/);
  const bob=(await request('/register','POST',credentials('bob'))).json;
@@ -185,15 +185,16 @@ test('Comptes indépendants, droits, éditions, échanges, conflits et persistan
  const relogged=(await request('/login','POST',credentials('alice'))).json;
  const restored=(await request('/state','GET',undefined,relogged)).json;
  assert.deepEqual(restored.profile.times,{200:24,400:54});assert.equal(restored.sessions.find(s=>s.id===morning.id).date,'2026-10-04');
- const collision=await request('/account','PUT',{email:'BOB',name:'Alice',lastName:'Martin',version:restored.user.accountVersion},relogged);
+ const collision=await request('/account','PUT',{email:'bob',name:'Alice',lastName:'Martin',version:restored.user.accountVersion},relogged);
  assert.equal(collision.status,409);assert.match(collision.json.error,/déjà utilisé/);
  assert.equal((await request('/state','GET',undefined,relogged)).json.user.email,'alice','Une collision ne change pas le compte.');
  assert.equal((await request('/account','PUT',{email:'  ALICE-NOUVELLE  ',name:'Alice',lastName:'Martin',version:restored.user.accountVersion},relogged)).status,200);
  const renamed=(await request('/state','GET',undefined,relogged)).json;
- assert.equal(renamed.user.email,'alice-nouvelle');assert.equal(renamed.user.id,alice.user.id);
+ assert.equal(renamed.user.email,'ALICE-NOUVELLE');assert.equal(renamed.user.id,alice.user.id);
  assert.deepEqual(renamed.profile.times,{200:24,400:54});
  assert.equal((await request('/login','POST',credentials('alice'))).status,401);
  assert.equal((await request('/login','POST',credentials('ALICE-NOUVELLE'))).status,200);
+ assert.equal((await request('/login','POST',credentials('alice-nouvelle'))).status,401);
  const ownPath='/members/'+owner.user.id+'/admin',bobPath='/members/'+bob.user.id+'/admin';
  assert.equal((await request(bobPath,'PUT',{action:'grant-admin',expectedRole:'athlete'},admin)).status,403);
  assert.equal((await request(ownPath,'PUT',{action:'revoke-admin',expectedRole:'admin'},owner)).status,409,'Impossible de retirer le dernier admin');
@@ -204,7 +205,7 @@ test('Comptes indépendants, droits, éditions, échanges, conflits et persistan
  const coachPath='/members/'+admin.user.id+'/admin';
  assert.equal((await request(coachPath,'PUT',{action:'grant-admin',expectedRole:'coach'},bob)).status,200);
  assert.equal((await request(coachPath,'PUT',{action:'revoke-admin',expectedRole:'admin'},bob)).json.role,'coach','Restitution du rôle coach précédent');
- const deletion={identifier:'alice-nouvelle',confirm:true};
+ const deletion={identifier:'ALICE-NOUVELLE',confirm:true};
  assert.equal((await request('/account','DELETE',deletion,bob)).status,403,'Un autre identifiant ne peut pas confirmer ce profil');
  assert.equal((await request('/account','DELETE',{...deletion,confirm:false},relogged)).status,400);
  assert.equal((await request('/account','DELETE',{...deletion,identifier:'mauvais-identifiant'},relogged)).status,403);

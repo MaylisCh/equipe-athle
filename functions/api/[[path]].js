@@ -1,6 +1,7 @@
 import seed from '../../seed.json';
 import { library, info } from '../../content.mjs';
 import { defaultSeason, normalizeSeason } from '../../season.mjs';
+import { initializeCommunity, passwordHash, passwordMatches, credentialInsert, communityState, communityAction, removeMemberCommunity, syncSessionCompetition } from '../../community.mjs';
 
 const schema = `
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL, profile TEXT NOT NULL DEFAULT '{}', profile_version INTEGER NOT NULL DEFAULT 1, last_name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', account_version INTEGER NOT NULL DEFAULT 1, previous_role TEXT NOT NULL DEFAULT 'athlete');
@@ -9,8 +10,7 @@ CREATE TABLE IF NOT EXISTS records (collection TEXT NOT NULL, id TEXT NOT NULL, 
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS role_events (id INTEGER PRIMARY KEY, actor TEXT NOT NULL, member TEXT NOT NULL, previous_role TEXT NOT NULL, next_role TEXT NOT NULL, created INTEGER NOT NULL);
 INSERT OR IGNORE INTO meta VALUES ('revision',1);
-INSERT OR IGNORE INTO meta VALUES ('setup_complete',0);
-INSERT OR IGNORE INTO meta VALUES ('last_session_cleanup',0);`;
+INSERT OR IGNORE INTO meta VALUES ('setup_complete',0);`;
 
 const json = (value, status=200) => Response.json(value, {status, headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const error = (message,status=400) => {throw Object.assign(new Error(message),{status});};
@@ -31,22 +31,14 @@ async function initialize(db) {
   const season=await stmt(db,'INSERT OR IGNORE INTO records(collection,id,data) VALUES(?,?,?)','season','2026-2027',JSON.stringify(defaultSeason)).run();
   if(season.meta.changes)await db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();
   const ready=await db.prepare("SELECT value FROM meta WHERE key='seeded'").first();
-  if(ready)return;
+  if(ready){await initializeCommunity(db);return;}
   await stmt(db,'INSERT OR IGNORE INTO users(id,email,name,role,last_name) VALUES(?,?,?,?,?)',crypto.randomUUID(),'maylis','Maylis','admin','Chancerelle').run();
   const entries=Object.entries({sessions:seed.sessions,library,info}).flatMap(([collection,items])=>items.map(item=>stmt(db,'INSERT OR IGNORE INTO records(collection,id,data) VALUES(?,?,?)',collection,item.id,JSON.stringify(item))));
   for(let i=0;i<entries.length;i+=40)await db.batch(entries.slice(i,i+40));
   await db.prepare("INSERT OR IGNORE INTO meta VALUES ('seeded',1)").run();
+  await initializeCommunity(db);
  })();
  try{await initialization;}catch(e){initialization=null;throw e;}
-}
-async function cleanupOldSessions(db) {
- const now=Date.now();
- const last=await db.prepare("SELECT value FROM meta WHERE key='last_session_cleanup'").first();
- if(last && now-last.value<86400000)return;
- const cutoff=new Date(now-90*86400000).toISOString().slice(0,10);
- const removed=await stmt(db,"DELETE FROM records WHERE collection='sessions' AND json_extract(data,'$.date') < ?",cutoff).run();
- await stmt(db,"UPDATE meta SET value=? WHERE key='last_session_cleanup'",now).run();
- if(removed.meta.changes)await db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();
 }
 const versionCheck=(actual,wanted)=>{if(actual!==wanted)error('Cet élément a été modifié ailleurs. Rechargez la page pour voir la dernière version.',409);};
 const TYPES=['speed','strength','vo2','endurance','hills','competition','group','rest'];
@@ -113,27 +105,27 @@ async function handle(request,db) {
  if(method==='GET'&&path==='/api/auth')return json({setup:!setupComplete,pending:setupComplete?null:{name:'Maylis',lastName:'Chancerelle',email:'maylis'},setupCodeRequired:false,user:ctx?publicUser(ctx):null,csrf:null});
  const body=method==='GET'?{}:await bodyJSON(request);
  if(method==='POST'&&['/api/login','/api/setup','/api/register'].includes(path)) {
-  const email=str(body.email,'Identifiant',180,true).toLowerCase();
+  const email=str(body.email,'Identifiant',180,true);
   if(path==='/api/login'){
    const user=await stmt(db,'SELECT * FROM users WHERE email=?',email).first();
-   if(!user||(!setupComplete&&user.role==='admin'))error('Identifiant inconnu. Inscrivez-vous pour créer votre profil.',401);
+   if(!user||(!setupComplete&&user.role==='admin')||!await passwordMatches(db,user,body.password))error('Identifiant ou mot de passe incorrect.',401);
    return json(await session(db,user));
   }
-  const name=str(body.name,'Prénom',80,true),lastName=str(body.lastName||'','Nom',80),phone=str(body.phone||'','Téléphone',40);
+  const name=str(body.name,'Prénom',80,true),lastName=str(body.lastName||'','Nom',80),phone=str(body.phone||'','Téléphone',40),hash=await passwordHash(body.password);
   if(path==='/api/setup'){
    if(setupComplete)error('Initialisation indisponible.',403);
    const reserved=await stmt(db,"SELECT * FROM users WHERE role='admin' LIMIT 1").first();
    if(!reserved)error('Profil administrateur absent.',409);
    const duplicate=await stmt(db,'SELECT id FROM users WHERE email=? AND id!=?',email,reserved.id).first();
    if(duplicate)error('Cet identifiant est déjà utilisé.',409);
-   try{await db.batch([stmt(db,'UPDATE users SET email=?,name=?,last_name=?,phone=? WHERE id=?',email,name,lastName,phone,reserved.id),db.prepare("UPDATE meta SET value=1 WHERE key='setup_complete'"),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")]);}
+   try{await db.batch([stmt(db,'UPDATE users SET email=?,name=?,last_name=?,phone=? WHERE id=?',email,name,lastName,phone,reserved.id),stmt(db,'UPDATE account_credentials SET password_hash=?,initial_identifier=NULL,provisional=0,version=version+1 WHERE user_id=?',hash,reserved.id),db.prepare("UPDATE meta SET value=1 WHERE key='setup_complete'"),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")]);}
    catch(e){if(/UNIQUE constraint failed: users\.email/i.test(String(e)))error('Cet identifiant est déjà utilisé.',409);throw e;}
    return json(await session(db,{...reserved,email,name,last_name:lastName,phone}),201);
   }
   if(await stmt(db,'SELECT id FROM users WHERE email=?',email).first())error('Cet identifiant est déjà utilisé.',409);
   const role=body.coach?'coach':'athlete';
   const user={id:crypto.randomUUID(),email,name,last_name:lastName,phone,role,account_version:1};
-  const actions=[stmt(db,'INSERT INTO users(id,email,name,role,last_name,phone) VALUES(?,?,?,?,?,?)',user.id,email,name,role,lastName,phone),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")];
+  const actions=[stmt(db,'INSERT INTO users(id,email,name,role,last_name,phone) VALUES(?,?,?,?,?,?)',user.id,email,name,role,lastName,phone),credentialInsert(db,user.id,hash),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")];
   try{await db.batch(actions);}
   catch(e){if(/UNIQUE constraint failed: users\.email/i.test(String(e)))error('Cet identifiant est déjà utilisé.',409);throw e;}
   return json(await session(db,user),201);
@@ -148,7 +140,7 @@ async function handle(request,db) {
    db.prepare('SELECT id,name,last_name AS lastName,phone,role FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE').all(),
    db.prepare('SELECT * FROM records WHERE archived=0 ORDER BY rowid').all()
   ]);
-  const result={revision:meta.value,user:publicUser(ctx),members:members.results,profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[],season:null};
+  const result={revision:meta.value,user:publicUser(ctx),members:members.results,profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[],competitions:[],season:null,...await communityState(db,ctx)};
   for(const row of rows.results){const item={...JSON.parse(row.data),version:row.version};if(row.collection==='season'){result.season=item;continue;}if(ctx.role!=='coach'){delete item.coachNote;delete item.sourceText;}result[row.collection].push(item);}
   return json(result);
  }
@@ -162,7 +154,7 @@ async function handle(request,db) {
  }
  if(method==='PUT'&&path==='/api/account'){
   if('role' in body)error('Le rôle ne se modifie pas dans les réglages personnels.',403);
-  const email=str(body.email,'Identifiant',180,true).toLowerCase();
+  const email=str(body.email,'Identifiant',180,true);
   const name=str(body.name,'Prénom',80,true),lastName=str(body.lastName||'','Nom',80),phone=str(body.phone||'','Téléphone',40);
   const result=await stmt(db,'UPDATE users SET email=?,name=?,last_name=?,phone=?,account_version=account_version+1 WHERE id=? AND account_version=? AND NOT EXISTS (SELECT 1 FROM users AS other WHERE other.email=? AND other.id<>?)',email,name,lastName,phone,ctx.id,body.version,email,ctx.id).run();
   if(!result.meta.changes){
@@ -172,9 +164,9 @@ async function handle(request,db) {
   await db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();return json({ok:true});
  }
  if(method==='DELETE'&&path==='/api/account'){
-  if(body.confirm!==true||str(body.identifier,'Identifiant',180,true).toLowerCase()!==ctx.email)error('Confirmez la suppression avec votre identifiant.',403);
+  if(body.confirm!==true||str(body.identifier,'Identifiant',180,true)!==ctx.email)error('Confirmez la suppression avec votre identifiant.',403);
   if(ctx.role==='admin'&&(await db.prepare("SELECT COUNT(*) AS count FROM users WHERE role='admin'").first()).count<=1)error('Nommez un autre administrateur avant de supprimer votre profil.',409);
-  await db.batch([stmt(db,'DELETE FROM auth WHERE user_id=?',ctx.id),stmt(db,'DELETE FROM users WHERE id=?',ctx.id),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")]);return json({ok:true});
+  await db.batch([...removeMemberCommunity(db,ctx.id),stmt(db,'DELETE FROM auth WHERE user_id=?',ctx.id),stmt(db,'DELETE FROM users WHERE id=?',ctx.id),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")]);return json({ok:true});
  }
  const roleMatch=path.match(/^\/api\/members\/([^/]+)\/admin$/);
  if(method==='PUT'&&roleMatch){
@@ -191,6 +183,8 @@ async function handle(request,db) {
   }else error('Action invalide.');
   await db.batch([stmt(db,'UPDATE users SET role=?,previous_role=?,account_version=account_version+1 WHERE id=?',role,previous,member.id),stmt(db,'INSERT INTO role_events(actor,member,previous_role,next_role,created) VALUES(?,?,?,?,?)',ctx.id,member.id,member.role,role,Date.now()),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")]);return json({ok:true,role});
  }
+ const community=await communityAction(db,ctx,path,method,body);
+ if(community)return json(community,method==='POST'?201:200);
  if(ctx.role!=='coach')error('Cette action est réservée au coach.',403);
  if(method==='PUT'&&path==='/api/season'){
   let data;try{data=normalizeSeason(body);}catch(e){error(e.message);}
@@ -205,7 +199,7 @@ async function handle(request,db) {
  const [,collection,encoded]=match,id=encoded?decodeURIComponent(encoded):null;
  if(method==='POST'&&!id){
   const item={...recordData(collection,body),id:crypto.randomUUID(),version:1};
-  await db.batch([stmt(db,'INSERT INTO records(collection,id,data) VALUES(?,?,?)',collection,item.id,JSON.stringify(item)),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")]);return json(item,201);
+  await db.batch([stmt(db,'INSERT INTO records(collection,id,data) VALUES(?,?,?)',collection,item.id,JSON.stringify(item)),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")]);if(collection==='sessions')await syncSessionCompetition(db,item);return json(item,201);
  }
  if(method==='PUT'&&id){
   const old=await getRecord(db,collection,id);versionCheck(old.version,body.version);
@@ -221,6 +215,7 @@ async function handle(request,db) {
   actions.push(stmt(db,'UPDATE records SET data=?,version=? WHERE collection=? AND id=? AND version=?',JSON.stringify(item),item.version,collection,id,old.version));
   actions.push(db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'"));
   const results=await db.batch(actions);if(results.slice(0,-1).some(r=>!r.meta.changes))error('La séance a changé ailleurs. Rechargez la page.',409);
+  if(collection==='sessions')await syncSessionCompetition(db,item);
   return json(item);
  }
  if(method==='DELETE'&&id){
@@ -234,7 +229,6 @@ export async function onRequest({request,env}) {
  try{
   if(!env.DB)error('Base de données Cloudflare non configurée.',503);
   await initialize(env.DB);
-  await cleanupOldSessions(env.DB);
   return await handle(request,env.DB);
  }catch(e){if(!e.status)console.error(e);return json({error:e.status?e.message:'Erreur du serveur.'},e.status||500);}
 }

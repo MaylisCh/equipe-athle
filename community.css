@@ -1,0 +1,30 @@
+.session-feedback{display:flex;align-items:center;justify-content:space-between;gap:20px;border-top:1px solid var(--line);padding-top:20px;margin-top:24px}
+.difficulty-summary{display:grid;gap:6px;flex:1;max-width:390px;font-size:.83rem}
+.difficulty-summary strong{margin-left:8px}.difficulty-summary small{color:var(--muted);font-size:.7rem}
+.difficulty-summary meter{display:block;width:100%;height:13px;accent-color:#74559a}
+.difficulty-summary meter::-webkit-meter-bar{background:#e9e5ef;border:0;border-radius:10px}
+.difficulty-summary meter::-webkit-meter-optimum-value{background:#74559a;border-radius:10px}
+.difficulty-summary meter::-moz-meter-bar{background:#74559a;border-radius:10px}
+.comment-form{padding:18px;background:#f2f4ed;border-radius:12px;margin:18px 0 24px}
+.comment-form h3{margin:0 0 18px}.rating-picker{border:0;margin:0 0 18px;padding:0;min-width:0}
+.rating-picker legend{font-size:.83rem;font-weight:650}.rating-stars{display:flex;gap:5px;margin-top:8px}
+.rating-stars label{position:relative;margin:0;cursor:pointer}.rating-stars span{display:grid;place-items:center;width:44px;height:44px;font-size:2rem;line-height:1;color:#b9b8c0;border-radius:8px;background:white}
+.rating-stars .filled span{color:#74559a}.rating-stars input{position:absolute;width:1px;height:1px;opacity:0;padding:0;min-height:0;margin:0}
+.rating-stars label:has(input:focus-visible) span{outline:2px solid var(--green);outline-offset:2px}
+.rating-caption{font-size:.78rem;margin:6px 0;color:var(--muted)}.rating-picker .text-button{padding-left:0;font-size:.72rem}
+.comment-item{padding:16px 0;border-top:1px solid var(--line)}.comment-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.88rem}
+.comment-item .prose{font-size:.86rem;margin:10px 0}.comment-item>small{font-size:.68rem}
+.comment-rating{font-size:.78rem;margin:8px 0;color:var(--muted)}.comment-rating span{font-size:1rem;color:#74559a;margin-right:6px;letter-spacing:.04em}
+.competition-table{min-width:700px}.competition-table td{vertical-align:middle}.competition-table td:first-child{min-width:145px}
+.competition-table td:nth-child(2){min-width:170px}.competition-table td>small{display:block;margin-top:5px;font-size:.7rem}
+.competition-table .signup-label{display:flex;align-items:center;justify-content:center;margin:0}.signup-label input{width:20px;min-height:20px;height:20px;margin:0;accent-color:var(--green)}
+.signup-label span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.competition-table button{white-space:nowrap;font-size:.78rem;padding:8px 10px}
+.participant-list{padding:0;list-style:none;margin:20px 0}.participant-list li{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:13px 0;border-top:1px solid var(--line)}
+.timeline-competition-cell{display:flex;flex-direction:column;gap:3px;min-width:0;align-self:stretch}
+.timeline-competition-cell .timeline-competition{width:100%;min-height:36px;white-space:normal;overflow-wrap:anywhere}
+.season-rail-inner{--timeline-label-width:128px;--timeline-cell-width:82px}
+.calendar-week-head button.week-context-competition{border:0;font-family:inherit;font-size:inherit;font-weight:inherit;cursor:pointer;padding:3px 6px}
+.daily-competitions h2{font-size:1.2rem}.daily-competitions>button{margin-right:8px;margin-bottom:10px}.daily-competitions>a{display:block;font-size:.82rem;margin-top:8px}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+@media(max-width:760px){.season-rail-inner{--timeline-label-width:104px;--timeline-cell-width:76px}.session-feedback{align-items:flex-start;flex-direction:column;gap:14px}.difficulty-summary{width:100%;max-width:none}.session-feedback>button{width:100%}.comment-form{padding:15px}.participant-list li{font-size:.85rem}.competition-table{min-width:680px}.comment-heading .pill{font-size:.65rem}}
