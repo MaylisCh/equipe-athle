@@ -69,13 +69,13 @@ Après connexion, le site affiche toujours le planning. Les boutons de navigatio
 
 **Réglages** permet de modifier uniquement ses propres identifiant de connexion, prénom, nom et téléphone et de consulter son rôle admin/coach/athlète. Le rôle n’est pas modifiable depuis le formulaire personnel. Un identifiant déjà utilisé est refusé ; après un changement, il faut utiliser le nouvel identifiant pour se reconnecter. Les chronos et le rôle restent liés au même profil.
 
-Un **admin** gère les droits d’administration ; il n’édite pas les séances. Un **coach** édite les contenus communs. Chaque profil, admin compris, a ses propres chronos.
+Un **admin** gère les comptes et les rôles ; il n’édite pas les séances. Un **coach** édite les contenus communs. Chaque profil, admin compris, a ses propres chronos.
 
-Dans **Réglages → Administrateurs du site**, un admin peut nommer un membre déjà inscrit, puis retirer ses propres droits pour transmettre le site. On ne peut jamais retirer le dernier admin. Les actions sont journalisées côté serveur et prennent effet immédiatement. Un membre qui perd ses droits admin retrouve son rôle précédent (coach ou athlète). Lorsqu’un coach est nommé admin, son rôle admin remplace son rôle coach.
+Dans **Réglages → Gestion des membres**, un admin peut nommer un membre admin ou coach, retirer ces droits, réinitialiser le mot de passe d’un autre membre ou supprimer son compte. La réinitialisation demande de saisir un nouveau mot de passe provisoire, sans règle de complexité, ferme toutes les connexions du membre et ne modifie pas ses chronos. Le membre peut ensuite changer ce mot de passe dans ses réglages. Les athlètes et coachs n’ont aucun de ces droits sur les autres comptes ; les contrôles sont aussi appliqués côté serveur. On ne peut jamais retirer ou supprimer le dernier admin. Les changements de rôles sont journalisés. Un membre qui perd ses droits admin retrouve son rôle précédent (coach ou athlète).
 
-**Le groupe** affiche un tableau des membres (prénom, nom, téléphone, rôle), avec recherche. Seuls les comptes connectés y accèdent. Aucun chrono ni adresse e-mail des autres membres n’y est transmis. Le téléphone est facultatif et peut être retiré des réglages.
+**Le groupe** affiche un tableau des membres (prénom, nom, téléphone, rôle, date d’ajout), avec recherche. Les dates d’ajout sont enregistrées pour les nouveaux comptes ; les dates anciennes inconnues restent « Non renseignée ». Seuls les comptes connectés y accèdent. Aucun chrono des autres membres n’y est transmis ; seuls les admins reçoivent les identifiants nécessaires à la gestion des comptes. Le téléphone est facultatif.
 
-**Réglages → Supprimer mon profil** efface définitivement le compte, ses coordonnées et ses chronos, après confirmation par identifiant. Les contenus partagés du groupe sont conservés. Le dernier admin doit d’abord nommer un successeur. Il n’y a pas de suppression du compte d’un autre membre dans cette interface.
+La suppression de son propre profil ou d’un autre compte par un admin demande une case de confirmation « Êtes-vous sûr de vouloir supprimer ce compte ? ». Elle efface le compte, ses coordonnées, ses chronos, ses commentaires et ses inscriptions, mais conserve les séances, compétitions et informations partagées. Le dernier admin doit d’abord nommer un successeur. Cette mise à jour ne supprime ni ne réinitialise aucun compte existant automatiquement.
 
 ## Documents source
 

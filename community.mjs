@@ -2,6 +2,8 @@ import { competitionData, mondayOf } from './community-core.mjs';
 import { seasonWeekDate } from './season.mjs';
 
 const schema=`
+CREATE TABLE IF NOT EXISTS account_created (user_id TEXT PRIMARY KEY, created INTEGER NOT NULL);
+CREATE TRIGGER IF NOT EXISTS record_account_created AFTER INSERT ON users BEGIN INSERT INTO account_created(user_id,created) VALUES(NEW.id,CAST(strftime('%s','now') AS INTEGER)*1000); END;
 CREATE TABLE IF NOT EXISTS account_credentials (user_id TEXT PRIMARY KEY, password_hash TEXT, initial_identifier TEXT, provisional INTEGER NOT NULL DEFAULT 1, version INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS session_comments (session_id TEXT NOT NULL, user_id TEXT NOT NULL, rating INTEGER, body TEXT NOT NULL DEFAULT '', is_private INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL DEFAULT 1, updated INTEGER NOT NULL, PRIMARY KEY(session_id,user_id));
 CREATE TABLE IF NOT EXISTS competition_signups (competition_id TEXT NOT NULL, user_id TEXT NOT NULL, created INTEGER NOT NULL, PRIMARY KEY(competition_id,user_id));`;
@@ -81,6 +83,47 @@ async function activeRecord(db,collection,id) {
  return {...JSON.parse(row.data),version:row.version};
 }
 export async function communityAction(db,ctx,path,method,body) {
+ const memberMatch=path.match(/^\/api\/members\/([^/]+)(?:\/(password|coach))?$/);
+ if(memberMatch&&['PUT','DELETE'].includes(method)){
+  if(ctx.role!=='admin')fail('Action réservée aux administrateurs.',403);
+  const id=decodeURIComponent(memberMatch[1]),action=memberMatch[2];
+  const member=await stmt(db,'SELECT * FROM users WHERE id=?',id).first();
+  if(!member)fail('Membre introuvable.',404);
+  if(member.account_version!==body.version)fail('Ce compte a changé. Rechargez la page.',409);
+  const guard='EXISTS (SELECT 1 FROM users WHERE id=? AND account_version=?)';
+  if(action==='password'&&method==='PUT'){
+   const password=passwordValue(body.password),hash=await passwordHash(password);
+   const results=await db.batch([
+    stmt(db,`UPDATE account_credentials SET password_hash=?,initial_identifier=NULL,provisional=1,version=version+1 WHERE user_id=? AND ${guard}`,hash,id,id,body.version),
+    stmt(db,`DELETE FROM auth WHERE user_id=? AND ${guard}`,id,id,body.version),
+    stmt(db,'UPDATE users SET account_version=account_version+1 WHERE id=? AND account_version=?',id,body.version),revision(db)
+   ]);
+   if(!results[2].meta.changes)fail('Ce compte a changé. Rechargez la page.',409);
+   return {ok:true,temporaryPassword:password};
+  }
+  if(action==='coach'&&method==='PUT'){
+   if(member.role==='admin')fail('Retirez d’abord les droits admin de ce membre.');
+   if(!['grant-coach','revoke-coach'].includes(body.action))fail('Action invalide.');
+   const role=body.action==='grant-coach'?'coach':'athlete';
+   const results=await db.batch([
+    stmt(db,`INSERT INTO role_events(actor,member,previous_role,next_role,created) SELECT ?,id,role,?,? FROM users WHERE id=? AND account_version=?`,ctx.id,role,Date.now(),id,body.version),
+    stmt(db,'UPDATE users SET role=?,account_version=account_version+1 WHERE id=? AND account_version=?',role,id,body.version),revision(db)
+   ]);
+   if(!results[1].meta.changes)fail('Ce compte a changé. Rechargez la page.',409);
+   return {ok:true,role};
+  }
+  if(!action&&method==='DELETE'){
+   if(body.confirm!==true||body.identifier!==member.email)fail('Confirmez avec l’identifiant exact du membre.');
+   if(member.role==='admin'&&(await db.prepare("SELECT COUNT(*) AS n FROM users WHERE role='admin'").first()).n<=1)fail('Le dernier administrateur ne peut pas être supprimé.',409);
+   const deletionGuard="EXISTS (SELECT 1 FROM users WHERE id=? AND account_version=? AND (role<>'admin' OR (SELECT COUNT(*) FROM users WHERE role='admin')>1))";
+   const actions=['auth','account_credentials','session_comments','competition_signups','account_created'].map(table=>stmt(db,`DELETE FROM ${table} WHERE user_id=? AND ${deletionGuard}`,id,id,body.version));
+   actions.push(stmt(db,`DELETE FROM users WHERE id=? AND account_version=? AND (role<>'admin' OR (SELECT COUNT(*) FROM users WHERE role='admin')>1)`,id,body.version),revision(db));
+   const results=await db.batch(actions);
+   if(!results[actions.length-2].meta.changes)fail('Suppression impossible : compte modifié ou dernier admin.',409);
+   return {ok:true};
+  }
+  fail('Route introuvable.',404);
+ }
  if(path==='/api/password'&&method==='PUT'){
   const hash=await passwordHash(body.password);
   const changed=await stmt(db,'UPDATE account_credentials SET password_hash=?,initial_identifier=NULL,provisional=0,version=version+1 WHERE user_id=? AND version=?',hash,ctx.id,body.version).run();
@@ -130,7 +173,7 @@ export async function communityAction(db,ctx,path,method,body) {
  fail('Route introuvable.',404);
 }
 export function removeMemberCommunity(db,id) {
- return ['account_credentials','session_comments','competition_signups'].map(table=>stmt(db,`DELETE FROM ${table} WHERE user_id=?`,id));
+ return ['account_credentials','session_comments','competition_signups','account_created'].map(table=>stmt(db,`DELETE FROM ${table} WHERE user_id=?`,id));
 }
 export async function syncSessionCompetition(db,session) {
  const id=`session-${session.id}`,row=await stmt(db,"SELECT * FROM records WHERE collection='competitions' AND id=?",id).first();

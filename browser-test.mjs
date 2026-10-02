@@ -84,6 +84,9 @@ try {
  const memberRow=admin.locator('tr').filter({hasText:'Camille Martin'});await memberRow.getByRole('button',{name:'Nommer admin'}).click();await expect(admin.locator('tr').filter({hasText:'Camille Martin'})).toContainText('Retirer les droits admin');
  await admin.locator('tr').filter({hasText:'Camille Martin'}).getByRole('button',{name:'Retirer les droits admin'}).click();await expect(admin.locator('tr').filter({hasText:'Camille Martin'})).toContainText('Nommer admin');
  await expect(admin.locator('tr').filter({hasText:'Maylis Chancerelle'}).getByRole('button',{name:'Retirer les droits admin'})).toBeDisabled();
+ await memberRow.getByRole('button',{name:'Nommer coach',exact:true}).click();await expect(memberRow).toContainText('Retirer les droits coach');
+ await memberRow.getByRole('button',{name:'Retirer les droits coach',exact:true}).click();await expect(memberRow).toContainText('Nommer coach');
+ await expect(memberRow).toContainText(new Date().toLocaleDateString('fr-FR'));
  // Public rating, author editing, private feedback, and deletion through the compact dialog.
  await nav(athlete,'entrainements');await athlete.locator('.calendar-day[data-date="2026-10-02"]').click();
  const sessionId=await athlete.locator('#daily-sessions [data-comments]').first().getAttribute('data-comments');
@@ -105,6 +108,13 @@ try {
  assert.equal(await athlete.locator('.timeline-training').first().evaluate(el=>getComputedStyle(el).gridColumnStart),'3','Les périodes restent alignées après l’ajout d’une compétition avant la saison');
  await athlete.screenshot({path:join(import.meta.dirname,'test-results/community-planning.png'),fullPage:true});
  await nav(admin,'reglages');
+ // Reset another member, sign in using the password chosen by the admin, then delete by checkbox.
+ const disposable=await newPage();await disposable.goto(origin+'/#inscription');await expect(disposable.getByRole('heading',{name:'Rejoindre l’équipe.'})).toBeVisible();
+ await disposable.locator('#auth-form [name=email]').fill('Test-Admin');await disposable.locator('#auth-form [name=password]').fill('ancien');await disposable.locator('#auth-form [name=name]').fill('Compte temporaire');await disposable.getByRole('button',{name:'Créer mon compte',exact:true}).click();await expect(disposable.locator('#daily-sessions')).toBeVisible();
+ await Promise.all([admin.waitForResponse(response=>response.url().endsWith('/api/state')),admin.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')))]);await nav(admin,'groupe');await expect(admin.locator('#member-rows')).toContainText('Compte temporaire');await nav(admin,'reglages');const disposableRow=admin.locator('tr').filter({hasText:'Compte temporaire'});await expect(disposableRow).toBeVisible();
+ await disposableRow.getByRole('button',{name:'Réinitialiser le mot de passe'}).click();await admin.locator('#editor [name=password]').fill('Choisi-Par-Admin');await admin.getByRole('button',{name:'Confirmer la réinitialisation'}).click();await expect(admin.locator('#editor-fields')).toContainText('Mot de passe provisoire : Choisi-Par-Admin');await admin.locator('#cancel-editor').click();
+ await disposable.reload();await disposable.locator('#auth-form [name=email]').fill('Test-Admin');await disposable.locator('#auth-form [name=password]').fill('Choisi-Par-Admin');await disposable.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(disposable.locator('#daily-sessions')).toBeVisible();
+ await disposableRow.getByRole('button',{name:'Supprimer le compte',exact:true}).click();await expect(admin.locator('#editor [name=identifier]')).toHaveCount(0);await admin.locator('#editor [name=confirm]').check();await admin.getByRole('button',{name:'Supprimer définitivement',exact:true}).click();await expect(disposableRow).toHaveCount(0);await disposable.close();
  await nav(coach,'entrainements');await coach.locator('.calendar-day[data-date="2026-10-01"]').click();await coach.screenshot({path:join(import.meta.dirname,'test-results/coach-desktop.png'),fullPage:true});
  await athlete.setViewportSize({width:390,height:844});await athlete.getByRole('button',{name:'☰ Menu'}).click();await nav(athlete,'entrainements');
  await expect(athlete.locator('#navigation')).not.toBeVisible();assert.equal(await athlete.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Pas de défilement horizontal sur mobile');
@@ -117,7 +127,7 @@ try {
  await athlete.locator('#password-form [name=password]').fill('A');await athlete.getByRole('button',{name:'Changer mon mot de passe'}).click();await expect(athlete.locator('#toast')).toHaveText('Votre mot de passe a été changé.');await expect(athlete.locator('#password-form [name=password]')).toHaveValue('');
  await athlete.reload();await athlete.locator('#auth-form [name=email]').fill('camille-nouvelle');await athlete.locator('#auth-form [name=password]').fill('a');await athlete.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(athlete.locator('#auth-error')).toContainText('incorrect');await athlete.locator('#auth-form [name=password]').fill('A');await athlete.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(athlete.locator('#daily-sessions')).toBeVisible();await athlete.getByRole('button',{name:'☰ Menu'}).click();await nav(athlete,'reglages');
  await athlete.getByRole('button',{name:'Supprimer mon profil',exact:true}).click();
- await athlete.locator('#editor [name=identifier]').fill('camille-nouvelle');await athlete.locator('#editor [name=confirm]').check();await athlete.getByRole('button',{name:'Supprimer définitivement mon profil',exact:true}).click();await expect(athlete.getByRole('button',{name:'Se connecter',exact:true})).toBeVisible();
+ await expect(athlete.locator('#editor [name=identifier]')).toHaveCount(0);await athlete.locator('#editor [name=confirm]').check();await athlete.getByRole('button',{name:'Supprimer définitivement mon profil',exact:true}).click();await expect(athlete.getByRole('button',{name:'Se connecter',exact:true})).toBeVisible();
  await expect(admin.getByRole('button',{name:'Supprimer mon profil',exact:true})).toBeDisabled();
  await expect(coach.getByRole('button',{name:'+ Séance',exact:true})).toBeVisible();
  assert.deepEqual(errors,[]);console.log('Parcours navigateur OK : mots de passe et casse, chronos personnels, séances, commentaires publics/privés et moyenne, compétitions partagées et inscriptions, synchronisation, droits admin et mobile.');

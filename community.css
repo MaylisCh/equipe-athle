@@ -27,4 +27,5 @@
 .calendar-week-head button.week-context-competition{border:0;font-family:inherit;font-size:inherit;font-weight:inherit;cursor:pointer;padding:3px 6px}
 .daily-competitions h2{font-size:1.2rem}.daily-competitions>button{margin-right:8px;margin-bottom:10px}.daily-competitions>a{display:block;font-size:.82rem;margin-top:8px}
 .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.member-management{min-width:900px}.member-management td{vertical-align:top}.member-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px}.member-actions button{font-size:.8rem}
 @media(max-width:760px){.season-rail-inner{--timeline-label-width:104px;--timeline-cell-width:76px}.session-feedback{align-items:flex-start;flex-direction:column;gap:14px}.difficulty-summary{width:100%;max-width:none}.session-feedback>button{width:100%}.comment-form{padding:15px}.participant-list li{font-size:.85rem}.competition-table{min-width:680px}.comment-heading .pill{font-size:.65rem}}

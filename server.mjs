@@ -206,7 +206,7 @@ async function handle(req,res) {
    db.prepare('DELETE FROM auth WHERE token=?').run(ctx.token);reply({ok:true});return;
   }
   if(req.method==='GET' && path==='/api/state') {
-   const result={revision:db.prepare("SELECT value FROM meta WHERE key='revision'").get().value,user:publicUser(ctx),members:db.prepare('SELECT id,name,last_name AS lastName,phone,role FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE').all(),profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[],competitions:[],season:null,...await communityState(featureDB,ctx)};
+   const result={revision:db.prepare("SELECT value FROM meta WHERE key='revision'").get().value,user:publicUser(ctx),members:db.prepare(`SELECT id,name,last_name AS lastName,phone,role,(SELECT created FROM account_created WHERE user_id=users.id) AS createdAt ${ctx.role==='admin'?',email,account_version AS accountVersion':''} FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE`).all(),profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[],competitions:[],season:null,...await communityState(featureDB,ctx)};
    for(const row of db.prepare('SELECT * FROM records WHERE archived=0 ORDER BY rowid').all()) {
     const item={...JSON.parse(row.data),version:row.version};
     if(row.collection==='season'){result.season=item;continue;}
@@ -246,7 +246,7 @@ async function handle(req,res) {
     const member=db.prepare('SELECT role FROM users WHERE id=?').get(ctx.id);
     if(member.role==='admin' && db.prepare("SELECT COUNT(*) AS count FROM users WHERE role='admin'").get().count<=1)fail('Nommez un autre administrateur avant de supprimer votre profil.',409);
     db.prepare('DELETE FROM auth WHERE user_id=?').run(ctx.id);
-    for(const table of ['account_credentials','session_comments','competition_signups'])db.prepare(`DELETE FROM ${table} WHERE user_id=?`).run(ctx.id);
+    for(const table of ['account_credentials','session_comments','competition_signups','account_created'])db.prepare(`DELETE FROM ${table} WHERE user_id=?`).run(ctx.id);
     db.prepare('DELETE FROM users WHERE id=?').run(ctx.id);bump();
    });reply({ok:true});return;
   }

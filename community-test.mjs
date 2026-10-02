@@ -110,4 +110,41 @@ test('API Cloudflare : migration sans perte, mots de passe, confidentialité et 
  assert.equal((await state(bob)).signups.some(s=>s.userId==='alice'),false);assert.equal((await state(coach)).comments.some(c=>c.userId==='alice'),false);
  assert.equal(native.prepare('SELECT COUNT(*) AS n FROM account_credentials WHERE user_id=?').get('alice').n,0);
  assert.equal((await state(coach)).sessions.some(s=>s.id==='ancien'),true);
+ // Admin account management never changes shared training or another member's times.
+ assert.equal((await state(owner)).members.find(m=>m.id==='bob').createdAt,null);
+ const fresh=(await state(owner)).members.find(m=>m.id===caseAccount.json.user.id);
+ assert.ok(fresh.createdAt>Date.now()-60000);assert.equal(fresh.email,'Alice');
+ assert.equal((await state(bob)).members.some(m=>'email' in m),false);
+ const memberPath='/members/'+fresh.id;
+ for(const who of [bob,coach]){
+  assert.equal((await request(memberPath+'/password','PUT',{version:1},who)).status,403);
+  assert.equal((await request(memberPath+'/coach','PUT',{version:1,action:'grant-coach'},who)).status,403);
+  assert.equal((await request(memberPath,'DELETE',{version:1,identifier:'Alice',confirm:true},who)).status,403);
+ }
+ assert.equal((await request(memberPath+'/coach','PUT',{version:1,action:'grant-coach'},owner)).status,200);
+ assert.equal((await state(caseAccount.json)).user.role,'coach');
+ assert.equal((await request(memberPath+'/password','PUT',{version:1},owner)).status,409);
+ assert.equal((await request(memberPath+'/coach','PUT',{version:2,action:'revoke-coach'},owner)).status,200);
+ assert.equal((await state(caseAccount.json)).user.role,'athlete');
+ assert.equal((await request(memberPath+'/password','PUT',{version:3,password:''},owner)).status,400);
+ const reset=await request(memberPath+'/password','PUT',{version:3,password:'Choisi'},owner);assert.equal(reset.status,200);assert.equal(reset.json.temporaryPassword,'Choisi');
+ assert.equal((await request('/state','GET',undefined,caseAccount.json)).status,401);
+ assert.equal((await request('/login','POST',{email:'Alice',password:' Z '})).status,401);
+ assert.equal((await request('/login','POST',{email:'Alice',password:'choisi'})).status,401);
+ const renewed=(await request('/login','POST',{email:'Alice',password:'Choisi'})).json;
+ const renewedState=await state(renewed);assert.equal(renewedState.passwordProvisional,true);
+ assert.equal((await comment(renewed,3,'À effacer avec le compte',false,0)).status,200);
+ await request('/competitions/'+legacy.id+'/signup','PUT',{registered:true},renewed);
+ assert.equal((await request(memberPath,'DELETE',{version:4,identifier:'alice',confirm:true},owner)).status,400);
+ assert.equal((await request(memberPath,'DELETE',{version:4,identifier:'Alice',confirm:true},owner)).status,200);
+ assert.equal((await request('/state','GET',undefined,renewed)).status,401);
+ for(const table of ['account_created','account_credentials','session_comments','competition_signups','auth'])assert.equal(native.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE user_id=?`).get(fresh.id).n,0);
+ assert.equal((await state(owner)).competitions.some(c=>c.id===legacy.id),true);
+ assert.deepEqual((await state(bob)).profile.times,{200:28});
+ assert.equal((await request('/members/maylis','DELETE',{version:1,identifier:'maylis',confirm:true},owner)).status,409);
+ const successor=(await request('/register','POST',{email:'Successeur',password:'x',name:'Admin temporaire'})).json;
+ assert.equal((await request('/members/'+successor.user.id+'/admin','PUT',{action:'grant-admin',expectedRole:'athlete'},owner)).status,200);
+ assert.equal((await request('/members/'+successor.user.id,'DELETE',{version:2,identifier:'Successeur',confirm:true},owner)).status,200,'An admin can delete another admin while retaining a successor');
+ assert.equal((await state(owner)).members.filter(m=>m.role==='admin').length,1);
+ await initializeCommunity(DB);assert.equal((await state(owner)).members.find(m=>m.id==='bob').createdAt,null,'Restart cannot invent historic registration dates');
 });

@@ -137,7 +137,7 @@ async function handle(request,db) {
  if(method==='GET'&&path==='/api/state'){
   const [meta,members,rows]=await Promise.all([
    db.prepare("SELECT value FROM meta WHERE key='revision'").first(),
-   db.prepare('SELECT id,name,last_name AS lastName,phone,role FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE').all(),
+   db.prepare(`SELECT id,name,last_name AS lastName,phone,role,(SELECT created FROM account_created WHERE user_id=users.id) AS createdAt ${ctx.role==='admin'?',email,account_version AS accountVersion':''} FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE`).all(),
    db.prepare('SELECT * FROM records WHERE archived=0 ORDER BY rowid').all()
   ]);
   const result={revision:meta.value,user:publicUser(ctx),members:members.results,profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[],competitions:[],season:null,...await communityState(db,ctx)};
