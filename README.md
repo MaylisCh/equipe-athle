@@ -81,12 +81,13 @@ La suppression de son propre profil ou d’un autre compte par un admin demande 
 
 Les Word et Excel du dossier parent sont exclusivement lus. Aucun traitement n’écrit dedans.
 
-- `Saison hivernale…xlsx` fournit les séances des cycles, datées à partir du lundi de chaque semaine. Les semaines incomplètes restent incomplètes.
+- `Saison hivernale 2026 2027.xlsx` fournit les séances détaillées depuis ses onglets Cycle. Les dates sont rattachées à la saison 2026–2027, même si l’onglet annuel de ce fichier porte par erreur le nom `20252026`. La feuille `20262027` de la copie `Vathlète` sert de référence pour l’année de la planification ; ses onglets Cycle moins détaillés ne remplacent pas les séances du classeur principal.
+- Les cellules « Repos » ne créent pas de séance : le jour reste vide. Les semaines incomplètes restent incomplètes.
 - Le Word d’une semaine antérieure fournit uniquement les définitions et circuits. Ses séances ne sont pas mélangées au calendrier des cycles.
 - `Muscu 2309.xlsx` n’est pas affecté arbitrairement à la séance de force excentrique d’un autre cycle.
 - Une note coach signale que la consigne du 1er octobre indique `(800)`, alors que `2×250 + 2×200` totalise 900 m. Le texte original est conservé, sans correction du document.
 
-`import_sources.py` régénère le fichier de préparation `seed.json` à partir du classeur en lecture seule. Il ne remplace pas les données déjà éditées dans la base. La base n’utilise les contenus initiaux qu’à sa première création.
+`import_sources.py` régénère le fichier de préparation `seed.json` à partir du classeur en lecture seule. La migration détaillée unique ne met à jour que les séances à partir de la semaine suivant son exécution. Les séances passées et celles de la semaine en cours sont conservées ; les séances déjà modifiées par un coach sont également conservées. Les anciens repos futurs sont archivés, sans suppression de données.
 
 ## Hébergement gratuit et installation sur téléphone
 

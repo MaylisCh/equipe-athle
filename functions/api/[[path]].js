@@ -2,6 +2,7 @@ import seed from '../../seed.json';
 import { library, info } from '../../content.mjs';
 import { defaultSeason, normalizeSeason } from '../../season.mjs';
 import { initializeCommunity, passwordHash, passwordMatches, credentialInsert, communityState, communityAction, removeMemberCommunity, syncSessionCompetition } from '../../community.mjs';
+import { detailedImportMarker, legacyRestDates, nextWeekStartParis } from '../../session-import.mjs';
 
 const schema = `
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL, profile TEXT NOT NULL DEFAULT '{}', profile_version INTEGER NOT NULL DEFAULT 1, last_name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', account_version INTEGER NOT NULL DEFAULT 1, previous_role TEXT NOT NULL DEFAULT 'athlete');
@@ -21,6 +22,27 @@ const str = (value,label,max=20000,required=false) => {
 const publicUser = user => ({id:user.id,email:user.email,name:user.name,lastName:user.last_name||'',phone:user.phone||'',role:user.role,accountVersion:user.account_version||1});
 const stmt = (db,sql,...values) => db.prepare(sql).bind(...values);
 let initialization;
+async function migrateDetailedSessions(db) {
+ if (await stmt(db,'SELECT value FROM meta WHERE key=?',detailedImportMarker).first()) return;
+ const current=await db.prepare("SELECT id,data,version,archived FROM records WHERE collection='sessions'").all();
+ const existing=new Map(current.results.map(row=>[row.id,row]));
+ const actions=[];
+ const cutoff=nextWeekStartParis();
+ for (const item of seed.sessions) {
+  if(item.date<cutoff) continue;
+  const row=existing.get(item.id);
+  if (!row) actions.push(stmt(db,'INSERT OR IGNORE INTO records(collection,id,data) VALUES(?,?,?)','sessions',item.id,JSON.stringify(item)));
+  else if (row.version===1 && !row.archived) actions.push(stmt(db,"UPDATE records SET data=?,version=2 WHERE collection='sessions' AND id=? AND version=1 AND archived=0",JSON.stringify({...item,version:2}),item.id));
+ }
+ for (const [id,date] of Object.entries(legacyRestDates)) if(date>=cutoff) actions.push(stmt(db,"UPDATE records SET archived=1,version=version+1 WHERE collection='sessions' AND id=? AND version=1 AND archived=0",id));
+ let changed=false;
+ for (let i=0;i<actions.length;i+=40) {
+  const results=await db.batch(actions.slice(i,i+40));
+  changed ||= results.some(result=>result.meta.changes>0);
+ }
+ if(changed)await db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();
+ await stmt(db,'INSERT OR IGNORE INTO meta(key,value) VALUES(?,1)',detailedImportMarker).run();
+}
 async function digest(value) {
  const data=new TextEncoder().encode(value), bytes=await crypto.subtle.digest('SHA-256',data);
  return [...new Uint8Array(bytes)].map(x=>x.toString(16).padStart(2,'0')).join('');
@@ -31,12 +53,13 @@ async function initialize(db) {
   const season=await stmt(db,'INSERT OR IGNORE INTO records(collection,id,data) VALUES(?,?,?)','season','2026-2027',JSON.stringify(defaultSeason)).run();
   if(season.meta.changes)await db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();
   const ready=await db.prepare("SELECT value FROM meta WHERE key='seeded'").first();
-  if(ready){await initializeCommunity(db);return;}
+  if(ready){await initializeCommunity(db);await migrateDetailedSessions(db);return;}
   await stmt(db,'INSERT OR IGNORE INTO users(id,email,name,role,last_name) VALUES(?,?,?,?,?)',crypto.randomUUID(),'maylis','Maylis','admin','Chancerelle').run();
   const entries=Object.entries({sessions:seed.sessions,library,info}).flatMap(([collection,items])=>items.map(item=>stmt(db,'INSERT OR IGNORE INTO records(collection,id,data) VALUES(?,?,?)',collection,item.id,JSON.stringify(item))));
   for(let i=0;i<entries.length;i+=40)await db.batch(entries.slice(i,i+40));
   await db.prepare("INSERT OR IGNORE INTO meta VALUES ('seeded',1)").run();
   await initializeCommunity(db);
+  await migrateDetailedSessions(db);
  })();
  try{await initialization;}catch(e){initialization=null;throw e;}
 }

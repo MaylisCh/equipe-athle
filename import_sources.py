@@ -1,6 +1,7 @@
 """Read-only import of the original workbook. Output is confined to this site's seed.json."""
 import json
 import re
+import unicodedata
 from datetime import date, timedelta
 from pathlib import Path
 from zipfile import ZipFile
@@ -8,6 +9,7 @@ from xml.etree import ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
 NS = {'x': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+SOURCE_NAME = 'Saison hivernale 2026 2027.xlsx'
 
 def workbook(path):
     with ZipFile(path) as z:
@@ -37,8 +39,9 @@ def category(text):
     return 'group'
 
 def main():
-    files = list(ROOT.parent.glob('Saison hivernale*.xlsx'))
-    if len(files) != 1: raise SystemExit('Un seul classeur Saison hivernale attendu.')
+    files = [p for p in ROOT.parent.glob('Saison hivernale*.xlsx')
+             if unicodedata.normalize('NFC', p.name) == SOURCE_NAME]
+    if len(files) != 1: raise SystemExit(f'Classeur source introuvable ou ambigu : {SOURCE_NAME}.')
     sheets = workbook(files[0])
     sessions = []
     for sheet, cells in sheets.items():
@@ -53,10 +56,14 @@ def main():
             for offset in range(7):
                 raw = cells.get(f'{col}{offset + 2}', '').strip()
                 if not raw: continue
+                if raw.casefold() == 'repos': continue
                 dt = start + timedelta(days=offset)
                 first = raw.splitlines()[0].strip()
+                v2_match = re.search(r'(?im)^\s*V2\s*=?\s*', raw)
+                workout = raw[:v2_match.start()].rstrip() if v2_match else raw
+                v2 = raw[v2_match.end():].strip() if v2_match else ''
                 item = dict(id=f'{sheet}-{col}-{offset}', date=dt.isoformat(), title=first,
-                            type=category(raw), warmup='', workout=raw, v2='', targets=[],
+                            type=category(raw), warmup='', workout=workout, v2=v2, targets=[],
                             cycle=sheet, sourceText=raw, coachNote='', version=1)
                 if dt == date(2026,9,28):
                     item.update(title='Technique course & accélération', warmup='Renfo + gammes (travail latéral sur haies) + med. ball',

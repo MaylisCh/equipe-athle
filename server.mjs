@@ -8,6 +8,7 @@ import { library, info } from './content.mjs';
 import { defaultSeason, normalizeSeason } from './season.mjs';
 import { initializeCommunity, passwordHash, passwordMatches, communityState, communityAction, syncSessionCompetition } from './community.mjs';
 import { sqliteD1 } from './sqlite-d1.mjs';
+import { detailedImportMarker, legacyRestDates, nextWeekStartParis } from './session-import.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DATA = process.env.ATHLE_DATA_DIR || join(ROOT, 'data');
@@ -31,8 +32,8 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
  INSERT OR IGNORE INTO meta VALUES ('setup_complete',0);`);
 if(!db.prepare('PRAGMA table_info(users)').all().some(c=>c.name==='previous_role')) db.exec("ALTER TABLE users ADD COLUMN previous_role TEXT NOT NULL DEFAULT 'athlete'");
 db.prepare("UPDATE meta SET value=1 WHERE key='setup_complete' AND EXISTS (SELECT id FROM users WHERE role='admin' AND password!='')").run();
+const seed = JSON.parse(readFileSync(join(ROOT, 'seed.json'), 'utf8'));
 if (!db.prepare("SELECT value FROM meta WHERE key='seeded'").get()) {
- const seed = JSON.parse(readFileSync(join(ROOT, 'seed.json'), 'utf8'));
  db.exec('BEGIN');
  try {
   const insert = db.prepare('INSERT INTO records(collection,id,data) VALUES (?,?,?)');
@@ -42,6 +43,33 @@ if (!db.prepare("SELECT value FROM meta WHERE key='seeded'").get()) {
   db.exec("INSERT INTO meta VALUES ('seeded',1); COMMIT;");
  } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
+function migrateDetailedSessions() {
+ if (db.prepare('SELECT value FROM meta WHERE key=?').get(detailedImportMarker)) return;
+ db.exec('BEGIN IMMEDIATE');
+ try {
+  const read=db.prepare("SELECT id,data,version,archived FROM records WHERE collection='sessions'");
+  const existing=new Map(read.all().map(row=>[row.id,row]));
+  const insert=db.prepare('INSERT OR IGNORE INTO records(collection,id,data) VALUES(?,?,?)');
+  const update=db.prepare("UPDATE records SET data=?,version=? WHERE collection='sessions' AND id=? AND version=1 AND archived=0");
+  const cutoff=nextWeekStartParis();
+  let changed=0;
+  for (const item of seed.sessions) {
+   if (item.date<cutoff) continue;
+   const row=existing.get(item.id);
+   if (!row) { changed+=insert.run('sessions',item.id,JSON.stringify(item)).changes; continue; }
+   if (row.version===1 && !row.archived) {
+    const updated={...item,version:2};
+    changed+=update.run(JSON.stringify(updated),2,item.id).changes;
+   }
+  }
+  const archive=db.prepare("UPDATE records SET archived=1,version=version+1 WHERE collection='sessions' AND id=? AND version=1 AND archived=0");
+  for (const [id,date] of Object.entries(legacyRestDates)) if(date>=cutoff) changed+=archive.run(id).changes;
+  if (changed) db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();
+  db.prepare('INSERT OR IGNORE INTO meta(key,value) VALUES(?,1)').run(detailedImportMarker);
+  db.exec('COMMIT');
+ } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+migrateDetailedSessions();
 if(db.prepare('INSERT OR IGNORE INTO records(collection,id,data) VALUES(?,?,?)').run('season','2026-2027',JSON.stringify(defaultSeason)).changes)db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();
 if (!db.prepare('SELECT id FROM users LIMIT 1').get()) {
  db.prepare("INSERT INTO users(id,email,name,last_name,password,role) VALUES(?,?,?,?,?,?)").run(randomUUID(),'maylis','Maylis','Chancerelle','','admin');
