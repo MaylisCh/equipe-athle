@@ -1,0 +1,1058 @@
+CONTEXT — CAHIER DES CHARGES ET GUIDE DE REPRISE DU SITE ÉQUIPE 400/4H
+=================================================================
+Document établi le 6 octobre 2026.
+Projet : portail privé de l’équipe d’athlétisme 400 m / 400 m haies du PUC.
+Responsable initiale : Maylis Chancerelle.
+Dépôt : https://github.com/MaylisCh/equipe-athle.git
+Branche de travail observée : main.
+Dernier commit observé : 1b5b095 — import des séances détaillées 2026–2027 ; il
+est présent sur main et origin/main. L’état du déploiement Cloudflare de ce
+commit n’est pas vérifié ici. Les modifications locales de sécurité sur les
+codes d’accès groupe/coach décrits ci-dessous ne sont pas encore commitées ni
+poussées.
+
+BUT DU DOCUMENT
+---------------
+Permettre à une nouvelle personne, un futur admin ou un assistant de reprendre
+le projet sans perdre les décisions prises, les données des membres ou les
+modifications du coach. Ce document décrit les demandes validées, leur traduction
+dans le site actuel, les dossiers utiles, les règles de maintenance, les tests,
+les limites connues et les points à ne pas réintroduire.
+
+Il ne contient ni identifiants secrets Cloudflare/GitHub, ni copie de la base
+de production. L’état réel des contenus partagés est celui de la base D1,
+pas celui des fichiers d’initialisation du dépôt.
+
+PRIORITÉS ABSOLUES
+-----------------
+1. Ne jamais modifier les documents Word ou Excel d’origine.
+2. Préserver tous les comptes, chronos et contenus présents sur le site en ligne.
+3. Ne pas remplacer la base D1 existante lors d’un déploiement.
+4. Distinguer strictement données personnelles et contenus communs au groupe.
+5. Garder une interface simple, utilisable sur téléphone et modifiable en ligne.
+6. Respecter les droits côté serveur, pas seulement en cachant les boutons.
+7. Ne pas inventer de séances, dates précises ou chronos présentés comme mesurés.
+8. Aucun nettoyage automatique des anciennes séances : cette demande a été annulée.
+
+
+1. FINALITÉ, PUBLIC ET CHOIX VALIDÉS
+==================================
+
+Le projet est parti d’un classeur annuel de séances et d’un document explicatif
+pour obtenir un planning facile à consulter, avec des allures personnalisées.
+La solution retenue est un site internet classique hébergé, avec une base commune
+et des sessions individuelles. Ce n’est pas un simple fichier partagé.
+
+Le groupe est petit. Le lien est diffusé en interne. L’utilisatrice souhaite une
+solution gratuite et peu contraignante, entretenable après son départ du club.
+Le site est également installable comme application web sur téléphone (PWA).
+
+Choix successifs, à lire selon leur ordre de validation :
+- Les comptes uniquement locaux au téléphone n’ont pas été retenus : les profils
+  et contenus doivent être synchronisés en ligne.
+- Une version avec identifiant seul a existé, mais des mots de passe ont ensuite
+  été ajoutés. La version actuelle utilise identifiant ET mot de passe.
+- Aucun minimum de complexité ni de longueur de mot de passe n’est demandé,
+  hormis un mot de passe non vide et les limites techniques de saisie.
+- Toute nouvelle inscription au groupe exige le code de groupe. Choisir coach
+  demande également le code coach, à l’inscription ou plus tard dans Réglages.
+- Les deux codes sont sensibles à la casse, communs à tous les admins, visibles
+  en clair dans leurs réglages, et modifiables à tout moment par un admin.
+  Valeurs initiales : `NOUVEAU` et `COACH`. Remplacer un code invalide aussitôt
+  son ancienne valeur pour toutes les inscriptions/demandes suivantes.
+- L’activation initiale du compte admin ne demande pas le code de groupe.
+- Les admins peuvent nommer ou retirer des coachs depuis la gestion des membres.
+- Le rôle admin ne donne pas automatiquement le rôle coach.
+- Render n’est pas l’hébergement retenu : utiliser Cloudflare Pages et D1.
+- La suppression automatique après trois mois a été expressément retirée.
+
+
+2. DOSSIERS ET DOCUMENTS D’ORIGINE
+================================
+
+Dossier de travail sur ce Mac :
+  /Users/maylis/Desktop/athlé/
+
+Attention : macOS peut représenter le caractère « é » par e + accent combiné.
+Il s’agit du même dossier affiché « athlé ». Toujours vérifier le chemin réel
+plutôt que créer un second dossier pour contourner une différence d’encodage.
+
+Dossier du vrai projet Git :
+  /Users/maylis/Desktop/athlé/portail-athle/
+
+Documents présents dans le dossier parent au moment de cette rédaction :
+- Saison hivernale 2026 2027.xlsx
+- Saison hivernale 2026 2027 Vathlète.xlsx
+- Muscu 2309.xlsx
+- Entraînement semaine 2109.docx
+
+Les intitulés avec accents peuvent eux aussi utiliser des caractères combinés.
+Le classeur détaillé des séances est « Saison hivernale 2026 2027.xlsx ».
+Sa feuille annuelle porte par erreur le nom « 20252026 » : les dates de cette
+saison doivent être rattachées à 2026–2027. Quand l’année de planification doit
+être lue, utiliser la feuille « 20262027 » présente dans la copie Vathlète ; ses
+onglets Cycle moins détaillés ne remplacent pas les séances du classeur principal.
+Ne pas modifier les classeurs d’origine.
+
+Règles d’interprétation des sources :
+- Feuille annuelle « 20262027 » de la copie Vathlète : périodes générales,
+  périodes d’entraînement (notamment les lignes 5 et 13), semaines, charges,
+  intensité/volume, vacances, stages et compétitions. Certaines informations
+  sont seulement hebdomadaires.
+- Feuilles Cycle du classeur principal : séances détaillées, avec une première
+  semaine détaillée dans Cycle 1. Les semaines sont datées en 2026–2027.
+- Dernière feuille « Temps » : grilles de chronos par distance et pourcentages.
+- Le Word correspond à une semaine antérieure au planning Excel. Il sert aux
+  définitions d’acronymes et aux circuits ; ne pas injecter sa semaine comme
+  si elle correspondait aux mêmes dates que l’Excel.
+- V2 signifie une variante de séance selon les personnes, pas un bouton donnant
+  à chaque athlète le pouvoir de modifier la séance commune.
+- Muscu 2309.xlsx ne doit pas être attribué arbitrairement à une autre séance.
+- Les semaines ou cellules incomplètes restent incomplètes.
+- Une correction de calcul dans le site ne doit jamais modifier le classeur.
+
+Le fichier context.txt est un document de reprise local, hors du dossier du dépôt.
+Il n’est pas publié par le build. Le placer dans le dépôt ultérieurement n’est
+possible qu’en tant que documentation non publique, sans l’ajouter à dist/.
+
+Un dossier imbriqué portail-athle/portail-athle/ est actuellement non suivi par Git.
+Il ne faut ni le supprimer ni l’ajouter au commit sans vérifier son contenu et
+obtenir une consigne : il ne constitue pas le projet Git principal.
+
+
+3. NOM, STYLE ET NAVIGATION
+==========================
+
+Nom visuel partout : « Équipe 400/4H », et non « Équipe Athlé ».
+Pas besoin de renommer les fichiers, le dépôt, la base ou les chemins historiques.
+Logo : image officielle PUC fournie par l’utilisatrice, fichier puc-logo.png.
+Ce logo est utilisé par le site et le manifeste PWA ; ne pas le remplacer par
+un logo généré ou une interprétation approximative.
+
+Style actuel : fond clair crème, cartes sobres, verts pour les accents principaux,
+typographie lisible, titres courts, blocs aérés, interface adaptée au téléphone.
+Le fond PWA est #f5f4ee et la couleur principale du manifeste est #183e34.
+
+Navigation après connexion :
+- Le planning est toujours la page d’arrivée.
+- Sur ordinateur : boutons/liens dans une barre latérale.
+- Sur mobile : bouton « Menu » ouvrant les onglets.
+- Accès aux chronos personnels également dans l’en-tête.
+- Onglets : Planning ; Mes chronos ; Compétitions ; Acronymes & circuits ;
+  Infos du groupe ; Le groupe ; Réglages.
+- Ne pas remettre le petit sous-titre « Saison hivernale 2026-2027 » dans le menu.
+  Une indication de saison dans un autre emplacement n’est pas la même demande.
+
+Sur la page planning, ordre souhaité :
+1. Séance(s) du jour mises en avant, avec sélection/navigation de semaine.
+2. Calendrier mensuel navigable et jours cliquables.
+3. Frise « La planification en un coup d’œil ».
+
+Ne pas réintroduire :
+- Le titre « Repères jusqu’en août 2028 ».
+- La longue mention expliquant S1–S27, les semaines libres et le défilement.
+- Un bouton V2 dans la vue athlète.
+
+Codes couleur des types de séance, issus du CSS actuel :
+- Vitesse / technique : bleu turquoise, accent #3793ab.
+- Musculation : ocre, accent #c88c48.
+- VO2 max : mauve/rose, accent #ad6896.
+- Endurance : vert, accent #699556.
+- Côtes : brun, accent #a97956.
+- Compétition : rouge/rose, accent #cb6466.
+- Collectif : violet, accent #8a80bd.
+- Repos : gris-vert, accent #a2aca1.
+Toujours conserver des libellés en complément de la couleur.
+
+
+4. COMPTES, CONNEXION ET DONNÉES PERSONNELLES
+==========================================
+
+4.1 Connexion
+- Toute ouverture ou actualisation du lien demande une connexion.
+- La navigation interne entre les onglets garde la session active.
+- Le jeton est conservé dans la mémoire de la page, pas comme une connexion
+  persistante permettant de contourner la demande au prochain rechargement.
+- Le serveur donne actuellement des sessions temporaires de 12 heures.
+- L’accès à l’API des données nécessite une session valide.
+- La coque de connexion et les fichiers statiques peuvent être publics ; les
+  données de l’équipe ne doivent pas être publiées comme fichiers statiques.
+
+4.2 Inscription
+- Lien « Inscription » accessible sans être déjà membre.
+- Champs : prénom, nom, téléphone facultatif, identifiant, mot de passe,
+  code du groupe, case « Je suis coach » et code coach si elle est cochée.
+- Le prénom, l’identifiant et le mot de passe sont requis ; le nom et le
+  téléphone peuvent être laissés vides dans l’implémentation actuelle.
+- Le code de groupe est requis pour tout nouveau compte ; le code coach est
+  requis seulement si le rôle coach est demandé à l’inscription.
+- L’activation initiale du profil admin préconfiguré ne demande pas ces codes.
+- Les codes initiaux sont `NOUVEAU` (groupe) et `COACH` (coach), sensibles à la
+  casse. Les admins peuvent les consulter en clair et les modifier dans Réglages.
+  Les deux valeurs sont partagées entre tous les admins ; une modification
+  remplace immédiatement l’ancienne valeur.
+- Un athlète peut aussi demander le rôle coach depuis Réglages en saisissant le
+  code coach ; un coach peut retirer lui-même ce rôle sans code.
+- Tous les codes sont comparés sans normalisation, sensibles aux majuscules et
+  minuscules. Le code de groupe est obligatoire pour créer un nouveau compte.
+- Un compte ne peut jamais s’auto-attribuer le rôle admin à l’inscription.
+
+4.3 Identifiants et mots de passe
+- Respect exact des majuscules et minuscules.
+- L’identifiant doit être unique avec cette règle : Alice et alice sont donc
+  deux identifiants distincts, mais deux occurrences exactes de Alice sont refusées.
+- Une collision à l’inscription ou au changement d’identifiant renvoie une erreur.
+- Les identifiants existants n’ont pas été uniformisés ou passés en minuscules.
+- Le champ technique « email » désigne ici l’identifiant : ce n’est pas forcément
+  une adresse de courrier électronique.
+- Le changement d’identifiant ne crée pas un nouveau profil et ne change pas
+  automatiquement le mot de passe ; l’id interne du compte reste identique.
+- Les mots de passe ne sont pas nettoyés en minuscules et les espaces y comptent.
+- Limite actuelle de mot de passe : 1024 caractères ; pas de règle de complexité.
+- Stockage : PBKDF2 SHA-256, sel aléatoire, 100 000 itérations, jamais un mot de
+  passe personnel envoyé dans la liste des membres ou dans /api/state.
+- Pour les anciens comptes sans mot de passe, le mot de passe provisoire est
+  l’identifiant exact capturé lors de la migration. Une migration ultérieure ne
+  doit pas réinitialiser le mot de passe déjà choisi par le membre.
+
+4.4 Données personnelles
+- Chaque athlète, coach et admin a ses propres chronos.
+- Les allures affichées sont calculées pour la personne connectée.
+- Les chronos d’un coach ne changent jamais ceux des athlètes.
+- Aucun endpoint actuel n’autorise la consultation/modification des chronos
+  d’un autre membre, y compris par un admin.
+- Réglages personnels : identifiant, prénom, nom, téléphone, mot de passe,
+  demande ou retrait du rôle coach par une case dédiée, consultation du rôle et
+  suppression de son propre profil. Devenir coach exige le code coach ; le retirer
+  n’exige pas de code. Les admins voient et modifient les deux codes partagés.
+- Les rôles ne se modifient pas via le formulaire d’identité personnel.
+- Le téléphone est visible dans l’annuaire du groupe connecté et reste facultatif.
+
+4.5 Date d’ajout des comptes
+- Colonne « Ajout du compte » dans Le groupe et dans la gestion admin.
+- Affichage actuel : jour/mois/année, sans heure.
+- Les créations postérieures à l’ajout de cette fonction ont une date stockée
+  sous forme de timestamp ; un déclencheur SQL l’enregistre à l’insertion.
+- Les comptes antérieurs n’ont pas de date historique connue : « Non renseignée ».
+- Ne jamais leur attribuer artificiellement la date de migration ou de déploiement.
+- Une réinitialisation de mot de passe ou un changement d’identifiant ne change
+  pas la date de création du compte.
+
+
+5. MATRICE DE DROITS ET TRANSMISSION DU SITE
+==========================================
+
+Tous les profils connectés peuvent :
+- Lire le planning, les périodes, la bibliothèque et les infos du groupe.
+- Gérer leurs propres chronos, identité, mot de passe et compte.
+- Lire les coordonnées des membres dans l’annuaire.
+- Ajouter/modifier/retirer des compétitions, même créées par un autre membre.
+- S’inscrire personnellement aux compétitions et voir la liste publique des inscrits.
+- Ajouter/modifier/supprimer leurs propres commentaires de séance.
+
+Athlète :
+- Pas de modification des séances, circuits, infos ou périodes communes.
+- Pas de modification d’un autre compte ou de ses commentaires.
+
+Coach :
+- Tous les droits communs, plus créer/modifier/déplacer/échanger/archiver les séances.
+- Créer/modifier/archiver les acronymes, circuits et informations du groupe.
+- Gérer les périodes, charges, vacances, absences, stages et notes de saison.
+- Lire les notes coach et les commentaires privés destinés aux coachs.
+- Aucun droit d’administration sur les comptes des autres membres.
+
+Admin :
+- Tous les droits communs, plus gestion des comptes et attribution des rôles.
+- Nommer des admins, retirer ces droits, nommer des coachs ou retirer leurs droits.
+- Consulter et mettre à jour les codes d’accès au groupe et le code coach ; les
+  nouvelles valeurs sont communes à tous les admins et invalident les anciennes.
+- Les valeurs des codes sont incluses uniquement dans l’état envoyé aux admins ;
+  elles ne sont jamais envoyées aux profils athlète ou coach.
+- Supprimer les comptes d’autres membres, y compris coachs ou autres admins,
+  à condition qu’il reste au moins un admin.
+- Réinitialiser le mot de passe d’un autre compte en choisissant lui-même un
+  nouveau mot de passe provisoire ; déconnexion de toutes les sessions du membre.
+- Accès aux identifiants nécessaires à la gestion, mais pas aux chronos d’autrui.
+- Pas d’édition des séances ou périodes uniquement du fait du rôle admin.
+- Pas d’accès aux commentaires privés d’autres membres uniquement du fait du
+  rôle admin : la règle est auteur + coachs, pas auteur + coachs + admins.
+
+Les trois rôles sont actuellement exclusifs, pas des droits cumulables. La case
+personnelle de rôle coach est disponible aux profils athlète et coach ; un admin
+utilise la gestion des membres pour modifier les rôles, afin de préserver le
+dernier compte admin. Un admin peut attribuer directement le rôle coach à un
+autre membre depuis Gestion des membres ; le code coach protège les demandes
+d’auto-attribution à l’inscription et dans les réglages.
+Nommer un coach admin remplace son rôle coach. Retirer les droits admin lui
+rend son rôle précédent, coach ou athlète.
+
+Premier compte admin prévu : Maylis Chancerelle, avec activation initiale dédiée.
+Pour transmettre le site : nommer un successeur admin déjà inscrit, vérifier son
+accès, puis retirer ses propres droits ou son compte si nécessaire.
+Il faut distinguer deux transmissions :
+- Admin du site : gère le groupe dans l’interface.
+- Accès à GitHub et Cloudflare : entretient le code, l’hébergement et les sauvegardes.
+Nommer un admin dans le site ne lui donne pas automatiquement accès à ces services.
+
+Actions admin dans Réglages → Gestion des membres :
+- Tableau membre, identifiant, date d’ajout, profil, droits et actions de compte.
+- Boutons Nommer admin / Retirer les droits admin.
+- Boutons Nommer coach / Retirer les droits coach pour les non-admins.
+- Réinitialiser le mot de passe : fenêtre de saisie d’un mot de passe non vide,
+  confirmation, puis affichage du nouveau mot de passe provisoire à transmettre.
+- Supprimer le compte : fenêtre explicite et case « Êtes-vous sûr de vouloir
+  supprimer ce compte ? », puis bouton de suppression définitive.
+- Pas de saisie d’identifiant à recopier dans cette confirmation visuelle.
+  Le client transmet néanmoins l’identifiant du compte ciblé à l’API pour contrôle.
+- Pour son propre mot de passe ou sa suppression, l’admin utilise ses formulaires
+  personnels, comme les autres profils.
+- La suppression efface compte, chronos, coordonnées, sessions, mots de passe,
+  commentaires, inscriptions et date d’ajout. Le contenu partagé est conservé.
+- Aucune mise à jour du code ne doit exécuter ces actions sur les vrais membres.
+
+
+6. SÉANCES ET CALENDRIER
+=======================
+
+Structure d’une séance :
+- id interne stable, titre, date, type et créneau.
+- Créneau : matin, après-midi, soir ou non précisé.
+- Échauffement, puis Séance.
+- Version 2 facultative dans un encadré vert, affichée directement si présente.
+- Cibles d’allure : distance et pourcentage, ou intervalle de chronos fixes.
+- Étiquette facultative pour une cible, par exemple Filles, Garçons ou Tous.
+- Charge : héritée de la semaine, spécifique à la séance, ou masquée.
+- Cycle et notes coach, lorsqu’ils sont renseignés.
+- Bouton Commenter et synthèse des difficultés publiques.
+
+Plusieurs séances le même jour sont possibles, notamment matin et après-midi.
+Un jour initialement de repos peut recevoir une séance ; la carte Repos importée
+est alors masquée si une séance active existe, sans être nécessairement supprimée.
+Une journée vide signifie « aucune séance renseignée », pas un repos inventé.
+
+Déplacement : modifier uniquement la date et éventuellement le créneau, sans
+ressaisir le contenu. Échange : permuter deux séances et leurs créneaux dans
+une transaction, avec vérification de versions. Les commentaires suivent l’id
+de la séance, donc restent attachés à celle-ci après son déplacement.
+
+Calendrier :
+- Sélection initiale de la date courante.
+- Calendrier mensuel défilant, jours cliquables.
+- Navigation de semaine avec flèches, conservant le même jour de la semaine.
+- Couleurs et libellés des séances ; représentation de plusieurs séances par jour.
+- Indications contextuelles des semaines : charge, intensité, vacances, stages,
+  compétition, en complément des cartes quotidiennes.
+- Le calendrier mensuel fonctionne sans limite fixe, donc après août 2028.
+- Les séances importées couvrent initialement le 28 septembre 2026 au
+  23 janvier 2027. Ne pas fabriquer des séances pour remplir la suite.
+
+Conservation : le coach peut archiver une séance, mais il n’y a plus de purge
+automatique à trois mois ou lorsque la base se remplit. L’archivage des contenus
+utilise archived=1 et conserve les données en base. Une ancienne purge ayant déjà
+supprimé des données ne peut pas être annulée sans une sauvegarde antérieure.
+
+
+7. FRISE ANNUELLE, PÉRIODES ET CHARGES
+====================================
+
+Titre exact : « La planification en un coup d’œil ».
+Vue continue horizontale, avec une colonne d’intitulés et des semaines alignées.
+Bandes continues pour les périodes, vacances et stages ; cellules pour les charges.
+
+Contenu : périodes générales, périodes d’entraînement/cycles, intensité/volume,
+numéro de semaine, charge, vacances scolaires IDF, absences, stages et notes,
+compétitions. La ligne Absences existe même si le classeur initial est vide.
+
+Calendrier de référence de la frise :
+- S1 commence le lundi 31 août 2026.
+- S105 commence le lundi 28 août 2028.
+- Les informations annuelles initiales proviennent surtout de S1–S27.
+- Les charges initiales explicitement transcrites couvrent S1–S24 ; les suivantes
+  restent nulles si elles n’ont pas été renseignées.
+- Ces numéros S1…S105 sont relatifs à la saison ; ne pas les confondre avec les
+  numéros ISO utilisés pour saisir une compétition par semaine.
+
+Exemples transcrits : Reprise ; Développement général → orienté → spécifique ;
+Compétitions hivernales ; Conditionnement physique ; Préparation ; Spécifique ;
+Compétition ; blocs intensité moyenne/volume moyen, intensité élevée/volume faible,
+intensité faible/volume élevé ; vacances IDF ; stage S17 ; note Noël + NA en S18.
+Les libellés et dates de la base peuvent avoir été modifiés depuis cette importation.
+
+Édition par le coach :
+- Cliquer une bande pour modifier son libellé et ses semaines de début/fin.
+- Cliquer une case de charge pour choisir légère, moyenne, élevée ou non renseignée.
+- « + Ajouter un repère » pour ajouter une période, cycle, bloc intensité/volume,
+  vacances, absence, stage ou note.
+- Les périodes de même catégorie ne se chevauchent pas dans la validation actuelle.
+- Les repères sont communs à l’équipe, avec versions pour éviter l’écrasement
+  silencieux entre deux coachs.
+- Les athlètes peuvent gérer les compétitions, pas les autres bandes de saison.
+
+Charges :
+- Le classeur annuel donne une charge hebdomadaire, pas une charge individuelle
+  démontrée pour chaque séance.
+- Affichage : 1, 2 ou 3 barres pour légère, moyenne, élevée ; indication textuelle.
+- Dans la séance, préciser si la charge vient de la semaine ou de la séance.
+- Une charge spécifique choisie par le coach prime sur la charge hebdomadaire.
+- L’option « masquer » n’efface pas la charge de semaine des autres séances.
+- Les couleurs de type de séance restent indépendantes de la charge.
+
+Limite actuelle importante : le mois n’est pas limité, mais l’éditeur des périodes
+et charges de saison reste borné à S1–S105. La frise peut s’étendre pour afficher
+des compétitions extérieures à cette plage. Pour étendre les périodes au-delà,
+prévoir une évolution explicite du modèle et de la validation, sans écraser les
+105 semaines existantes. Ne pas annoncer que cette extension est déjà réalisée.
+
+
+8. CHRONOS ET MODÈLE DE FATIGUE : SPÉCIFICATION EXACTE
+===================================================
+
+L’onglet Mes chronos regroupe calculateur et références personnelles.
+Ordre validé : calculateur d’abord, saisie des chronos ensuite.
+Distances personnelles disponibles : 50, 60, 80, 100, 125, 150, 200, 250, 300,
+400, 500, 600, 800, 1000 et 1500 mètres. Des champs peuvent rester vides.
+Formats : secondes avec virgule ou point, par exemple 54,32 ou 54.32 ; minutes
+et secondes, par exemple 1:02,50. Les données sont stockées en secondes.
+
+Objectif : un chrono au 100 et/ou au 200 et au 400 doit permettre d’estimer une
+référence sur une autre distance, notamment 250 m. Tous les chronos connus doivent
+primer sur une courbe générique et appartenir exactement à la courbe personnelle.
+
+Lecture de la feuille Temps du coach :
+- Grilles indépendantes par distance : colonne de référence à gauche, colonnes
+  de temps cibles à droite pour différentes intensités.
+- Le calcul de pourcentage passe par la vitesse en m/s.
+- Les lignes de différents tableaux ne sont pas des chronos appariés du même
+  athlète. Prendre le meilleur temps de chaque tableau ne démontre donc pas une
+  loi de fatigue d’un athlète réel et ne permet pas de l’ajuster rigoureusement.
+- Le modèle inter-distance est une estimation complémentaire, pas une loi
+  entièrement apprise dans le classeur.
+
+Calcul actuel dans core.mjs :
+1. Construire un profil générique de log(temps) en fonction de log(distance),
+   par morceaux entre 50, 100, 200, 400, 800 et 1500 m.
+2. Sous 100 m, exposant 0,90 : hypothèse d’accélération initiale.
+3. Entre les bornes suivantes, utiliser les rapports médians de vitesse KsA :
+   100→200 : 0,992446 ; 200→400 : 0,912 ; 400→800 : 0,887940 ;
+   800→1500 : 0,921097.
+   Le rapport de temps correspondant est (distance2/distance1) / KsA.
+   Source des coefficients indiquée dans le projet :
+   https://pmc.ncbi.nlm.nih.gov/articles/PMC12181339/
+4. À chaque chrono connu, calculer le résidu :
+   r(d) = ln(chrono réel à d) - profil générique ln(temps à d).
+5. Entre deux distances personnelles connues, interpoler les résidus selon
+   ln(distance), puis les ajouter au profil générique et exponentier.
+6. En dehors des distances personnelles connues, conserver le résidu du point
+   connu le plus proche et suivre le profil générique pour extrapoler.
+7. À une distance renseignée exactement, renvoyer le chrono personnel sans
+   approximation. Afficher la provenance : mesuré, interpolé ou extrapolé.
+
+Formules de cible à une distance d :
+  t_ref = chrono exact ou estimé à la distance d
+  v_ref = d / t_ref
+  v_cible = v_ref × pourcentage / 100
+  t_cible = d / v_cible = t_ref / (pourcentage / 100)
+
+Important : la dernière division ressemble à la règle de trois initiale, mais
+elle est correcte à distance fixée pour un pourcentage de vitesse. La correction
+de fatigue porte sur la référence estimée d’une distance à l’autre : ne pas
+revenir à t_ref × distance demandée / distance connue sans modèle de fatigue.
+
+Pourcentages libres : strictement supérieurs à 0 et au plus 150 %, avec raccourcis
+80, 85 et 89 %. Une intensité au-delà de 100 % reste techniquement possible ; elle
+ne doit pas être présentée comme une performance physiologiquement garantie.
+Calcul inter-distance limité actuellement à 50–1500 m. Le serveur accepte des
+distances de consigne plus grandes, mais cela ne signifie pas qu’une référence
+personnalisée est calculée en dehors de la plage du modèle.
+
+Affichage des chronos au centième ; arrondir correctement lorsqu’un chrono
+franchit une minute. Vitesse affichée en m/s, avec virgule décimale française.
+Sans chrono personnel, ne pas inventer une cible personnalisée.
+L’interpolation/extrapolation est une aide ; les consignes du coach restent prioritaires.
+
+Incohérences du classeur relevées et corrigées seulement dans les calculs du site :
+- Les 10 lignes du bloc 500 m à 85 % utilisent en réalité 80 %.
+- Un en-tête 250 m à 85 % correspond à un bloc calculé à 89 %.
+Le site applique le pourcentage choisi plutôt que reproduire ces erreurs de copie.
+Les pourcentages ambigus du texte d’une séance ne sont pas convertis arbitrairement
+en cibles structurées sans distance/référence explicite.
+
+Autre incohérence conservée en note : la séance du 1er octobre indique « (800) »
+alors que 2×250 + 2×200 totalise 900 m. Le texte source n’a pas été réécrit.
+
+Plages de temps fixes :
+- Le coach peut entrer une distance, une borne basse, une borne haute, une étiquette.
+- Exemple de demande : 400 m entre 1:30 et 1:35 pour les filles, entre 1:10 et 1:20
+  pour les gars. Ce sont des consignes, pas des valeurs à substituer aux records.
+- Toutes les plages sont visibles ; le site ne déduit pas le sexe/groupe du membre.
+- Si la courbe personnelle est disponible : intensité équivalente minimale =
+  100 × t_ref / borne haute ; maximale = 100 × t_ref / borne basse.
+- Une consigne peut combiner des cibles en pourcentage et des intervalles fixes.
+
+
+9. COMMENTAIRES ET DIFFICULTÉ RESSENTIE
+====================================
+
+Interface compacte : bouton Commenter sur la séance ; fenêtre masquée sinon.
+Champs : difficulté 1 à 5 étoiles et texte libre. Au moins un champ doit être rempli.
+Échelle : 1 Très facile ; 2 Facile ; 3 Modéré ; 4 Difficile ; 5 Très difficile.
+Un commentaire peut contenir seulement une note ou seulement du texte.
+Limite de texte actuelle : 4000 caractères.
+
+Un membre dispose d’un commentaire par séance, modifiable et supprimable par lui.
+Commentaires permis sur les séances passées et futures.
+Ils sont attachés à l’id de séance et non uniquement à sa date.
+Une séance archivée n’est plus affichée dans les retours actifs de l’interface.
+
+Visibilité :
+- Public au groupe par défaut.
+- Case « Réservé à moi et aux coachs » pour rendre TOUT le commentaire privé,
+  texte ET difficulté. Pas de confidentialité limitée au texte seulement.
+- Privé visible par l’auteur et les profils coach ; pas par les autres athlètes,
+  ni par les admins simplement parce qu’ils sont admins.
+- Filtrage dans l’API avant envoi au navigateur ; ne pas envoyer les données
+  privées à tous les comptes pour les masquer ensuite en CSS.
+
+Synthèse sur la séance : barre/moyenne publique de difficulté de 1 à 5, nombre
+de votes, libellé lisible. Ne compter que les notes des commentaires publics.
+Les commentaires sans note et les notes privées n’entrent pas dans cette moyenne.
+Si aucun vote public : pas de moyenne inventée.
+Les membres ne peuvent pas modifier les commentaires des autres, même coachs.
+
+
+10. COMPÉTITIONS PARTAGÉES ET INSCRIPTIONS
+========================================
+
+Tout membre connecté peut ajouter, modifier, déplacer ou retirer une compétition,
+y compris celle d’un autre membre. C’est une exception explicite aux droits
+d’édition réservés au coach pour les autres éléments du planning.
+
+Champs : nom obligatoire ; soit semaine ISO, soit date précise ; lieu facultatif ;
+niveau facultatif. Valeurs actuelles de niveau : départemental, régional,
+interclubs, national, international, meeting, autre, non renseigné.
+Un lieu ou un niveau manquant n’empêche pas d’afficher la compétition.
+Pour la date : au moins une semaine est requise dans l’implémentation actuelle.
+La demande de dates « imprécises » est satisfaite par la semaine, pas par un
+événement entièrement sans semaine et sans date.
+
+Affichage :
+- Dans la frise annuelle, toujours sur sa semaine, même si le jour précis est connu.
+- Dans l’onglet Compétitions, sous forme de liste/tableau.
+- Dans le mois : marqueur au jour précis, ou rappel de semaine si jour inconnu.
+- Plusieurs compétitions dans une même semaine sont autorisées.
+- La frise inclut aussi les compétitions placées avant/après la plage initiale.
+
+Ligne attendue dans la liste : nom ; date/semaine ; lieu ; niveau ; case
+Inscription ; bouton Inscrits ; modification.
+Les données initiales importées de l’ancienne frise et des séances Compétition
+ont été reprises en enregistrements dédiés sans inventer de jour exact.
+
+Inscription :
+- La case ajoute seulement la personne actuellement connectée.
+- Athlètes, coachs et admins peuvent s’inscrire.
+- Décocher retire son inscription.
+- Le bouton Inscrits ouvre la liste des membres inscrits, publique dans le groupe.
+- Ce n’est pas une inscription fédérale/officielle auprès de l’organisateur.
+- Les inscriptions ne donnent aucun droit de modification des périodes ou séances.
+
+Les compétitions sont des objets partagés indépendants des comptes de leurs auteurs.
+Supprimer le compte d’un auteur ne supprime pas automatiquement ses compétitions.
+Les séances de type Compétition sont reliées par sourceSessionId lorsqu’importées
+ou synchronisées ; conserver cette relation lors d’évolutions, sans supposer que
+toute compétition doit obligatoirement être une séance d’entraînement.
+
+
+11. ACRONYMES, CIRCUITS ET INFOS DU GROUPE
+=======================================
+
+Bibliothèque dédiée consultable par les membres, modifiable par les coachs :
+ajout, modification, archivage, distinction acronyme/circuit et recherche.
+Contenu initial : SaS (Salutation au Soleil), JF (Jane Fonda), CD (Copenhaguen
+dynamique), MB (Medecine Ball), circuits Charléty, Paris, Montsouris, Gammes,
+4 + 4, 4 + 1, liste Exercices circuits. Les exercices et récupérations initiaux
+sont conservés dans content.mjs ; les modifications actives sont dans la base.
+
+Infos du groupe : page propre visuellement, en cartes avec pictogrammes,
+deux catégories : « Organisation & pratique » et « Relations & règles du groupe ».
+Les 12 paragraphes fournis par le coach ont été conservés dans content.mjs pour
+la première initialisation. Ne pas les écraser à chaque déploiement.
+
+Sujets du texte initial à préserver comme référence :
+1. Stages : Noël à Saint-Brieuc du 19 au 23 décembre ; stage de printemps envisagé
+   pendant les vacances parisiennes, probablement du 3 au 10 avril, au Portugal
+   ou en Espagne. Ce texte ne constitue pas une confirmation de réservation.
+2. Musculation : capacité difficile au-delà de 15 personnes ; priorité envisagée
+   selon ancienneté puis niveau ; maîtrise des exercices avant autonomie en salle.
+3. Rattrapage du samedi : favoriser vendredi ou samedi après-midi, sauf contre-
+   indication, pour préserver la fraîcheur avant les séances de sprint du lundi.
+4. Créneaux midi/début d’après-midi pour certains lundis et jeudis, annoncés
+   chaque semaine, séances en plus petit groupe, piste annexe envisagée.
+5. Groupe de compétition/performance quel que soit le niveau ; sérieux, écoute,
+   cohérence avec son engagement ; repos si nécessaire.
+6. Absences/arrêt d’un exercice : confiance accordée aux membres ; signaler si
+   possible les douleurs/problèmes ; adaptation dans les limites du groupe.
+7. Règles : possibilité de repos et rattrapage si une séance importante est limitée.
+8. Attention aux membres à investissement égal ; relations interpersonnelles
+   différentes sans inégalité d’entraînement ; possibilité d’en parler.
+9. Contact coach privilégié par WhatsApp/SMS ; limiter après 21h30 et le dimanche
+   hors période de compétition, pour préserver les temps de coupure.
+10. Départs anticipés occasionnels du coach pour son équilibre personnel.
+11. Recours en cas de problème : Isak, directeur technique, 07 68 83 78 93 ;
+    Delphine, présidente, semondes.dechelette@gmail.com.
+12. Respect : aucune insulte ni harcèlement, encouragement, entraide même lorsque
+    les affinités personnelles diffèrent.
+
+Le texte complet initial se trouve dans portail-athle/content.mjs, export info.
+La version actuelle modifiée par le coach peut différer : consulter la base/API.
+Ne pas republier ces coordonnées ou textes privés en dehors du périmètre autorisé.
+
+
+12. SCHÉMA D’ARCHITECTURE DU SITE
+===============================
+
+12.1 Vue fonctionnelle et propriété des données
+
+                    LIEN PRIVÉ DIFFUSÉ AU GROUPE
+                                 |
+                      Connexion / Inscription
+                                 |
+                    Session individuelle du membre
+                                 |
+              +------------------+-------------------+
+              |                                      |
+       DONNÉES PERSONNELLES                  DONNÉES COMMUNES
+       Identité / mot de passe               Planning / séances
+       Chronos / courbe personnelle          Périodes / charges
+       Son commentaire                       Circuits / acronymes
+       Son inscription                       Infos / compétitions
+              |                                      |
+       Édition par le membre                 Coach : contenus sportifs
+       Admin : rôle/reset/suppression        Tous : compétitions
+       Pas d'accès aux chronos d'autrui      Groupe : consultation
+              +------------------+-------------------+
+                                 |
+                      Base commune persistante
+
+12.2 Pages et navigation
+
+  Connexion / Inscription / Activation initiale admin
+                     |
+                     v
+  Planning (page d’arrivée)
+  ├─ Séance(s) du jour : échauffement, séance, V2, cibles, commentaires
+  ├─ Sélection/navigation de semaine
+  ├─ Calendrier mensuel
+  └─ La planification en un coup d’œil
+
+  Menu latéral / menu mobile
+  ├─ Planning
+  ├─ Mes chronos : calculateur puis références personnelles
+  ├─ Compétitions : événements et inscriptions
+  ├─ Acronymes & circuits : bibliothèque
+  ├─ Infos du groupe : organisation et règles
+  ├─ Le groupe : annuaire et date d’ajout
+  └─ Réglages
+     ├─ Identité, identifiant, téléphone, rôle
+     ├─ Mot de passe personnel
+     ├─ Suppression de son compte
+     └─ Gestion des membres [ADMIN SEULEMENT]
+        ├─ Nommer/retirer admin ou coach
+        ├─ Réinitialiser avec un mot de passe choisi
+        └─ Supprimer un autre compte
+
+12.3 Architecture technique de production
+
+  GitHub : MaylisCh/equipe-athle, branche main
+                     |
+             Publication du code
+                     |
+                     v
+  Cloudflare Pages : npm run build -> dist/
+       |                             |
+       | fichiers statiques HTTPS    | Pages Functions /api/*
+       v                             v
+  Navigateur / PWA                 functions/api/[[path]].js
+  index.html + app.js               contrôles de session/rôle/version
+  CSS + logo PUC                    + community.mjs
+  core.mjs (calculs)                + season.mjs / content.mjs / seed.json
+  season.mjs (repères)                           |
+  community-core.mjs                            | binding DB
+       |                                        v
+       +----- requêtes JSON /api/* --------> Cloudflare D1
+       |                                 comptes + contenus persistants
+       |
+       +----- service-worker.js : cache de la coque statique seulement
+              Les appels /api/* ne sont pas mis en cache par ce worker.
+
+  Documents Word/Excel [LECTURE SEULE]
+          |
+          +--> préparation contrôlée des données initiales
+                    seed.json / content.mjs / season.mjs
+                              |
+                    PREMIÈRE INITIALISATION SEULEMENT
+                              |
+                             D1
+  Aucun flux retour vers les documents d’origine ; aucun réimport automatique
+  remplaçant les contenus modifiés en production.
+
+12.4 Architecture locale de développement
+
+  Navigateur http://localhost:8787
+                   |
+        server.mjs (HTTP Node + mêmes routes applicatives)
+                   |
+        community.mjs + sqlite-d1.mjs (adaptateur commun)
+                   |
+        data/athle.sqlite [BASE LOCALE, PAS LA BASE D1 EN LIGNE]
+
+  Les tests utilisent des bases temporaires isolées.
+  Un fonctionnement local correct ne prouve pas que le déploiement en ligne
+  a réussi ou que le compte connecté dans Cloudflare est le bon.
+
+
+13. CARTOGRAPHIE DES FICHIERS DU PROJET
+=====================================
+
+Dans /Users/maylis/Desktop/athlé/portail-athle/ :
+
+Interface :
+- index.html : coque, en-tête, navigation, zones de rendu et fenêtre modale.
+- app.js : connexion, pages, formulaires, interactions, appels API, synchronisation.
+- style.css : style général et couleurs des types de séance.
+- layout.css : disposition et adaptations d’affichage.
+- calendar.css : calendrier et planification/frise.
+- community.css : commentaires, compétitions et gestion des membres.
+- puc-logo.png : logo officiel fourni, 300×300 dans l’état observé.
+- manifest.webmanifest : nom, icône, apparence et lancement de la PWA.
+- service-worker.js : cache des fichiers statiques, actuellement version v11.
+- icon.svg : ressource historique ; le logo visuel retenu est puc-logo.png.
+
+Calculs et contenus :
+- core.mjs : lecture/formatage des chronos, fatigue, cibles, charge des séances.
+- season.mjs : repères initiaux, semaines, validation des périodes/charges.
+- community-core.mjs : dates ISO, compétitions, échelle et moyenne publique.
+- content.mjs : bibliothèque et infos initiales fournies.
+- seed.json : séances préparées pour initialiser une base neuve.
+- import_sources.py : lecture seule du classeur et génération de seed.json.
+
+Serveurs et persistance :
+- functions/api/[[path]].js : véritable API Cloudflare Pages, catch-all /api/*.
+- community.mjs : schéma/migrations complémentaires, mots de passe, commentaires,
+  compétitions, inscriptions, dates de compte et actions admin communes.
+- server.mjs : serveur local Node/SQLite ; ne pas le confondre avec le runtime Pages.
+- sqlite-d1.mjs : adaptateur SQLite local reproduisant les appels D1 communs.
+
+Build, exécution et tests :
+- build.mjs : construit dist/ à partir d’une liste explicite de fichiers publics.
+- package.json : scripts start, build, test, test:browser ; Node >=22.16.
+- package-lock.json : versions exactes des dépendances de développement.
+- Démarrer le site.command : lance le serveur local sur Mac.
+- test.mjs : tests calculs, serveur local, comptes, droits et contenus.
+- community-test.mjs : tests du vrai handler Pages sur schéma SQLite simulant D1.
+- browser-test.mjs : tests Chromium/Playwright et captures, profils séparés.
+- README.md : guide opérationnel et description technique existante.
+- .gitignore : exclut data/, node_modules/, dist/, test-results/, .env, .DS_Store.
+
+Dossiers générés/locaux :
+- data/athle.sqlite : données du serveur local ; ne pas committer.
+- node_modules/ : dépendances installées ; ne pas committer.
+- dist/ : sortie reconstruite du build ; ne pas éditer manuellement.
+- test-results/ : captures/tests locaux ; ne pas présenter comme site en ligne.
+
+import_sources.py sélectionne explicitement « Saison hivernale 2026 2027.xlsx »
+et régénère seed.json en lecture seule. Les cellules « Repos » ne créent pas de
+séance. Une migration unique applique le détail aux séances à partir de la semaine
+suivant son exécution ; elle préserve la semaine en cours et les précédentes, ainsi
+que toute séance déjà modifiée par un coach. Les anciennes cartes Repos futures
+sont archivées, jamais supprimées. Cette migration ne copie ni ne réinitialise les
+comptes ou les autres contenus.
+
+
+14. DONNÉES, API ET CONTRÔLES DE CONCURRENCE
+=========================================
+
+Base de production : D1, accessible par le binding Pages nommé exactement DB.
+Le nom affiché de la base peut être equipe-athle ; vérifier la liaison existante
+dans Cloudflare au lieu de supposer qu’une base de même nom est la bonne.
+
+Principales tables :
+- users : id, identifiant dans email, identité, rôle, chronos dans profile JSON,
+  versions de profil/compte, coordonnées, rôle précédent.
+- auth : jetons de session hachés, utilisateur, expiration ; le local ajoute csrf.
+- records : collection, id, data JSON, version, archived.
+  Collections : sessions, library, info, season, competitions.
+- meta : marqueurs d’initialisation/migration et compteur revision partagé.
+- role_events : journal des changements de rôles.
+- account_credentials : mot de passe dérivé, état provisoire, version ; ancien
+  identifiant capturé seulement pour la transition des comptes préexistants.
+- group_access_codes : codes courants du groupe et coach, versionnés dans un
+  enregistrement partagé. Les valeurs initiales sont `NOUVEAU` et `COACH`.
+  Seuls les comptes admin reçoivent les valeurs courantes dans /api/state.
+- account_created : user_id et date de création connue ; pas de dates fabriquées.
+- session_comments : séance + auteur, difficulté, texte, confidentialité, version.
+- competition_signups : compétition + utilisateur, date de son inscription.
+
+Routes utiles, préfixe /api :
+- GET /auth ; POST /setup ; POST /register ; POST /login ; POST /logout.
+- GET /state : état filtré selon le rôle, profil personnel et contenus actifs.
+- PUT /profile : ses chronos ; PUT /account : son identité ; DELETE /account.
+- PUT /password : son mot de passe.
+- PUT /account/coach : demande/retrait de son propre rôle coach ; le code coach
+  exact est exigé côté serveur pour passer d’athlète à coach.
+- PUT /access-codes : remplacer les deux codes, réservé admin et protégé par
+  version ; le remplacement rend les anciennes valeurs immédiatement invalides.
+- PUT /members/:id/admin : attribution/retrait admin, réservé admin.
+- PUT /members/:id/coach : attribution/retrait coach, réservé admin.
+- PUT /members/:id/password : nouveau mot de passe choisi, réservé admin.
+- DELETE /members/:id : suppression ciblée, réservé admin.
+- PUT /season : périodes et charges, réservé coach.
+- POST /sessions, /library, /info ; PUT et DELETE /collection/:id : coach.
+  L’échange de séances passe par la mise à jour avec swapId et swapVersion.
+- PUT ou DELETE /sessions/:id/comment : uniquement son commentaire.
+- POST /competitions ; PUT ou DELETE /competitions/:id : tout profil connecté.
+- PUT /competitions/:id/signup : uniquement son inscription.
+
+Principes :
+- Les routes ne doivent jamais faire confiance à un userId fourni par le client
+  pour modifier un profil/commentaire/inscription d’un autre membre.
+- /api/register exige le code de groupe exact ; une inscription coach exige aussi
+  le code coach exact. La casse et les espaces sont comparés sans normalisation.
+- Les codes d’accès sont partagés, visibles uniquement par les admins dans leur
+  état API, et modifiables uniquement par eux. La mise à jour est globale et
+  versionnée ; la nomination d’un coach par un admin reste une action admin.
+- La session serveur fournit l’identité et le rôle autorisé.
+- Données validées côté serveur : dates réelles, champs, types, bornes, pourcentages,
+  chronos positifs, formats des commentaires et versions.
+- Identifiants stables même si une date, un nom ou un identifiant de connexion change.
+- Version d’un objet/profil vérifiée avant modification ; conflit explicite plutôt
+  qu’écrasement silencieux d’une modification concurrente.
+- Transactions pour les échanges, actions groupées et suppressions ciblées.
+- La réinitialisation admin ne touche ni profile ni profile_version des chronos.
+- Les données privées doivent être filtrées avant la réponse JSON.
+
+Synchronisation : réinterrogation environ chaque minute et au retour dans l’onglet.
+Ce n’est pas du temps réel WebSocket. Les formulaires ouverts ne sont pas écrasés.
+Les pages Chronos/Réglages peuvent différer leur rendu pour préserver la saisie ;
+quitter/revenir sur la page peut être nécessaire pour voir un tableau actualisé.
+Une session supprimée/réinitialisée est rejetée au prochain appel serveur.
+
+
+15. HÉBERGEMENT ET MISE EN LIGNE
+==============================
+
+Solution retenue : GitHub + Cloudflare Pages + Pages Functions + D1.
+La connexion Git du projet Cloudflare existe déjà selon la conversation.
+Ne pas créer une nouvelle application ou une nouvelle base pour chaque modification.
+
+Configuration de référence :
+- Dépôt : MaylisCh/equipe-athle ; branche de production : main.
+- Commande de build : npm run build.
+- Dossier public de sortie : dist.
+- Répertoire functions/ reconnu pour les fonctions Pages.
+- Binding D1 de l’environnement : DB, lié à la base persistante existante.
+- Les bindings sont gérés dans le tableau de bord Cloudflare.
+- Ne pas réintroduire un wrangler.toml/configuration imposant une autre base
+  sans vérifier la configuration active et la nécessité de ce changement.
+- Node de build et version du bundler peuvent différer du Node du Mac.
+
+Incident historique important : le bundler Pages utilisé avait refusé :
+  import seed from '../../seed.json' with { type: 'json' };
+Erreur : Expected ';' but found 'with'.
+La forme compatible actuelle dans la fonction est :
+  import seed from '../../seed.json';
+Le test Node adapte cet import pour tester le handler. Ne pas réintroduire
+automatiquement les attributs d’import JSON dans le fichier Pages sans vérifier
+le bundler de production, même si cette syntaxe marche avec le Node local.
+
+Le build ne publie que la coque, les modules client, CSS, logo et manifeste.
+Les documents Excel/Word, la base SQLite locale, secrets, sources du serveur et
+ce cahier des charges ne doivent pas être copiés dans le répertoire public.
+
+Forfait gratuit : c’est un objectif, pas une promesse de limites immuables.
+Le README historique cite 500 Mo par base, 5 Go au total, 5 millions de lignes
+lues et 100 000 lignes écrites par jour. Ces chiffres ne sont pas revérifiés
+dans ce document : consulter les limites D1/Workers officielles et le tableau
+de bord du compte avant de conseiller une capacité ou de diagnostiquer un quota.
+Ne pas mettre en place une purge automatique des séances pour répondre aux quotas.
+
+Procédure courante de publication :
+1. Vérifier le vrai dossier du dépôt et la branche main.
+2. Modifier le code en préservant les changements existants et les données.
+3. Lancer les tests pertinents et npm run build.
+4. Vérifier git diff, ne sélectionner que les fichiers réellement concernés.
+5. Créer un commit descriptif si la demande inclut la préparation du push.
+6. Dans GitHub Desktop, l’utilisatrice clique sur Push origin.
+7. Suivre le déploiement Pages et vérifier l’adresse en ligne.
+8. Conserver le binding DB et confirmer l’absence de perte de données.
+
+Ne pas annoncer « en ligne » après un simple commit local. Donner le commit et
+la branche, distinguer commit préparé, push effectué et déploiement réussi.
+Le site peut être entretenu en ligne pour les contenus, sans modifier le code.
+Les évolutions techniques restent des modifications du dépôt suivies d’un build.
+
+PWA : sur iPhone/iPad, Safari → Partager → Sur l’écran d’accueil ; sur Android,
+option Installer/Ajouter à l’écran d’accueil du navigateur. La PWA n’est pas une
+application native séparée. L’accès aux données et la connexion nécessitent le
+serveur ; le cache de fichiers ne garantit pas un mode hors ligne complet.
+
+
+16. RÈGLES DE MODIFICATION ET PROTECTION DES DONNÉES
+=================================================
+
+Avant toute intervention :
+- Lire ce document, README.md et les instructions locales éventuelles.
+- Vérifier le dossier courant, git status, la branche et les derniers commits.
+- Considérer toute modification non attribuée à l’intervention comme appartenant
+  à l’utilisatrice ; ne pas l’écraser ou l’ajouter au commit sans justification.
+- Clarifier si la demande est une explication, un diagnostic ou une mise en œuvre.
+- Préserver les fonctionnalités précédemment validées, même si elles ne sont pas
+  rappelées dans la nouvelle demande.
+
+Pendant l’intervention :
+- Faire des changements ciblés ; ne pas réécrire le projet sans nécessité.
+- Pour des modifications locales par un assistant, utiliser des patches contrôlés.
+- Pas de git reset --hard, git checkout destructif ni suppression de dossiers larges.
+- Pas de modification des Word/Excel, y compris pour « corriger » une erreur.
+- Pas de réinitialisation de seed/meta ou de remplacement global des records D1.
+- Ne pas copier des comptes d’une base de test vers la production.
+- Ne pas utiliser le bouton de suppression sur un vrai membre pour tester l’UI.
+- Ne pas ajouter de mots de passe en clair, jetons ou exports personnels à Git.
+- Ne pas transmettre les chronos d’autrui pour faciliter un affichage admin.
+- Conserver la compatibilité entre API locale et API Cloudflare pour toute nouvelle
+  fonctionnalité ; favoriser les fonctions communes lorsque c’est possible.
+- Mettre à jour le cache du service worker lors de changements client significatifs.
+- Ajouter tout nouveau fichier client nécessaire à la liste du build, sans
+  élargir la publication à tout le dépôt.
+- Ne pas modifier le comportement d’authentification/rôles par simple commodité
+  sans une consigne explicite de l’utilisatrice.
+
+Migrations :
+- Ajouter des tables/champs sans effacer les comptes existants.
+- Utiliser des marqueurs de migration et insertions conditionnelles idempotentes.
+- Réexécuter une migration ne doit ni remettre les mots de passe provisoires,
+  ni restaurer une compétition archivée, ni écraser une séance éditée.
+- L’initialisation de seed.json concerne une base neuve. La migration ponctuelle
+  des séances détaillées ci-dessus est l’exception explicitement préparée pour
+  cette évolution ; son marqueur la rend idempotente.
+- Demander une autorisation explicite avant les migrations risquées ou les
+  opérations de masse qui modifient les données en ligne.
+
+Après intervention :
+- Vérifier git diff --check et les fichiers réellement modifiés.
+- Faire des tests proportionnés au risque.
+- Mettre à jour le README et ce contexte si les règles/fonctionnalités changent.
+- Décrire les limites restant présentes et les vérifications réellement faites.
+- Donner une consigne simple pour GitHub Desktop si le push est préparé.
+- Ne jamais prétendre avoir vérifié le site en ligne si seuls des tests locaux
+  ont été exécutés.
+
+
+17. EXÉCUTION LOCALE, TESTS ET CRITÈRES D’ACCEPTATION
+==================================================
+
+Depuis /Users/maylis/Desktop/athlé/portail-athle/ :
+  npm start                -> serveur local, http://localhost:8787
+  npm run build            -> reconstruction de dist/
+  npm test                 -> tests Node/API/calculs sur bases temporaires
+  npm run test:browser      -> parcours Chromium/Playwright
+  git diff --check         -> contrôle des espaces/patches
+  git status --short --branch
+
+On peut aussi double-cliquer Démarrer le site.command et garder son Terminal ouvert.
+Ne pas ouvrir index.html directement : le site utilise une API.
+Node >=22.16 est requis. Les dépendances de développement sont installées par npm.
+Playwright/Chromium doit être disponible pour les tests navigateur.
+
+Variables du serveur local :
+- ATHLE_DATA_DIR : dossier de base SQLite ; défaut data/ dans le projet.
+- PORT : défaut 8787.
+- HOST : défaut 127.0.0.1.
+- APP_ORIGIN : origine attendue, normalement http://localhost:8787 en local.
+Les anciennes références RENDER_EXTERNAL_URL sont un héritage du serveur Node,
+pas une demande de revenir à Render pour l’hébergement actuel.
+
+Vérifications minimales à conserver :
+1. Inscription/connexion avec respect de la casse ; collision exacte refusée.
+2. Mot de passe choisi conservé après redémarrage/migration/changement d’identifiant.
+3. Les chronos d’un profil n’affectent pas ceux d’un autre.
+4. Le coach modifie les contenus partagés ; l’athlète/admin non-coach ne le peut pas.
+5. Ajout d’une deuxième séance/jour et sur un repos ; déplacement sans ressaisie.
+6. Échange de dates/créneaux avec conflit de versions détecté.
+7. V2 dans l’encadré vert, échauffement séparé, absence du bouton V2.
+8. Navigation jour/semaine/mois et accès aux dates jusqu’à août 2028 et au-delà.
+9. Bandes de période continues et alignées sur les bonnes semaines.
+10. Charge hebdomadaire distincte d’une surcharge propre à une séance.
+11. Chronos connus reproduits exactement par la courbe ; estimation signalée.
+12. Cibles de vitesse conformes aux pourcentages ; erreurs du classeur non reprises.
+13. Intervalles fixes corrects, labels libres, allures personnalisées non imposées
+    à un autre profil.
+14. Commentaires note seule/texte seul ; vide refusé ; modification/suppression propre.
+15. Commentaire privé absent de la réponse des autres profils non-coachs.
+16. Moyenne publique excluant notes privées et commentaires sans note.
+17. Compétitions imprécises par semaine et précises par jour toutes visibles.
+18. Plusieurs compétitions/semaine ; un athlète n’édite pas les autres périodes.
+19. Inscriptions de tous les rôles, liste publique, case n’affectant que soi.
+20. Réinitialisation admin avec mot de passe choisi, ancien mot de passe rejeté,
+    sessions fermées, casse préservée, chronos intacts.
+21. Athlète/coach rejeté côté API pour gestion d’un autre compte.
+22. Suppression avec case ; nettoyage des données personnelles et conservation
+    des contenus communs ; impossibilité de supprimer/retirer le dernier admin.
+23. Date connue pour un nouveau compte, Non renseignée pour un ancien, aucun
+    changement de date lors des changements d’identifiant ou de mot de passe.
+24. Déploiement/redémarrage sans écrasement de la base, sans purge des séances.
+25. Mise en page mobile sans défilement horizontal de toute la page ; les tableaux
+    et la frise peuvent avoir leur propre défilement local.
+26. Inscription refusée sans le code de groupe courant ou avec une casse différente ;
+    activation initiale admin et connexion existante restent accessibles.
+27. Inscription coach et demande coach depuis Réglages refusées sans le code coach
+    exact ; retrait volontaire des droits coach possible sans ce code.
+28. Codes visibles et modifiables dans les réglages admin ; changement effectif
+    pour toutes les demandes suivantes, anciennes valeurs refusées, conflit de
+    mise à jour concurrente signalé.
+29. Les codes ne figurent jamais dans l’état API reçu par un athlète ou un coach.
+    L’API bloque elle-même l’attribution du rôle coach sans le code approprié.
+
+Dernier commit local : 1b5b095, import préparé des 74 séances détaillées du
+28 septembre 2026 au 23 janvier 2027, sans cartes « Repos » ; les 10 variantes
+V2 sont séparées. Sa migration future préserve la semaine en cours, les dates
+passées et les séances éditées par un coach.
+
+Modification locale en cours : codes obligatoires pour les inscriptions au groupe
+et les demandes coach, réglage personnel pour demander/retirer le rôle coach,
+codes partagés visibles et modifiables par les admins (défauts `NOUVEAU` et
+`COACH`). Les contrôles sont ajoutés côté serveur local et Pages API ; le cache
+PWA est incrémenté. `git diff --check` a été vérifié ; tests et build non lancés.
+La migration des séances et cette modification des codes ne sont pas poussées ;
+le site en ligne n’a encore reçu aucune de ces évolutions.
+
+
+18. LIMITES ACTUELLES ET ÉVOLUTIONS NON RÉALISÉES
+==============================================
+
+Ne pas confondre exigences, existant et pistes possibles :
+- Dates de création historiques : inconnues si non stockées à l’époque.
+- Heure de création : timestamp stocké pour les nouveaux comptes, mais pas
+  affiché actuellement dans l’annuaire.
+- Périodes/charges : édition bornée à S105 ; mois et compétitions plus extensibles.
+- Modèle de fatigue : approximation d’aide ; pas une garantie physiologique et
+  pas un entraînement statistique sur des chronos appariés du classeur.
+- Rôles : exclusifs, pas de combinaison admin+coach actuelle.
+- Inscription : code de groupe requis ; code coach exigé pour demander ce rôle.
+- Les rôles restent exclusifs ; un admin n’est pas automatiquement coach.
+- Codes de départ : `NOUVEAU` et `COACH`. Ils doivent être changés par les admins
+  dans Réglages dès qu’ils souhaitent remplacer les valeurs communes.
+- Synchronisation : interrogations périodiques, pas diffusion instantanée.
+- Hors ligne : coque statique en cache, pas édition/synchronisation hors ligne.
+- Inscription compétition : interne au groupe, pas inscription officielle.
+- Réinitialisation : gérée par admin, pas de parcours de récupération par e-mail
+  prévu dans les demandes réalisées.
+- Aucune fonctionnalité de notification push, paiement, présence systématique,
+  résultats de compétitions ou export fédéral n’a été demandée comme réalisée.
+- Aucun effacement automatique pour gérer les quotas de stockage.
+- Nommer un admin ne transmet pas le compte GitHub ni le compte Cloudflare.
+
+Toute nouvelle évolution doit respecter le socle ci-dessus et être distinguée
+de ce qui est déjà livré. Si elle nécessite un choix structurant, demander à
+l’utilisatrice plutôt qu’en déduire une autorisation implicite.
+
+FIN DU CONTEXTE

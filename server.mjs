@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { library, info } from './content.mjs';
 import { defaultSeason, normalizeSeason } from './season.mjs';
-import { initializeCommunity, passwordHash, passwordMatches, communityState, communityAction, syncSessionCompetition } from './community.mjs';
+import { initializeCommunity, passwordHash, passwordMatches, validateRegistrationCodes, communityState, communityAction, syncSessionCompetition } from './community.mjs';
 import { sqliteD1 } from './sqlite-d1.mjs';
 import { detailedImportMarker, legacyRestDates, nextWeekStartParis } from './session-import.mjs';
 
@@ -204,13 +204,13 @@ async function handle(req,res) {
     reply(loginCookie(res,user));return;
    }
    const name=text(body.name,'Prénom',80,true);
-   const lastName=text(body.lastName||'','Nom',80),phone=text(body.phone||'','Téléphone',40),password=await passwordHash(body.password);
+   const lastName=text(body.lastName||'','Nom',80),phone=text(body.phone||'','Téléphone',40);
+   const role=path==='/api/setup'?'admin':await validateRegistrationCodes(featureDB,body);
+   const password=await passwordHash(body.password);
    const user=atomic(()=>{
-    let role='athlete';
     if(path==='/api/setup') {
      if(hasUsers()) fail('Initialisation indisponible.',403);
-     role='admin';
-    } else if(body.coach) role='coach';
+    }
     if(path==='/api/setup') {
      const reserved=db.prepare("SELECT * FROM users WHERE role='admin' AND password='' LIMIT 1").get();
      if(!reserved)fail('Aucun compte administrateur en attente.',403);

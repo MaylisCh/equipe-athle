@@ -1,7 +1,7 @@
 import seed from '../../seed.json';
 import { library, info } from '../../content.mjs';
 import { defaultSeason, normalizeSeason } from '../../season.mjs';
-import { initializeCommunity, passwordHash, passwordMatches, credentialInsert, communityState, communityAction, removeMemberCommunity, syncSessionCompetition } from '../../community.mjs';
+import { initializeCommunity, passwordHash, passwordMatches, validateRegistrationCodes, credentialInsert, communityState, communityAction, removeMemberCommunity, syncSessionCompetition } from '../../community.mjs';
 import { detailedImportMarker, legacyRestDates, nextWeekStartParis } from '../../session-import.mjs';
 
 const schema = `
@@ -134,9 +134,10 @@ async function handle(request,db) {
    if(!user||(!setupComplete&&user.role==='admin')||!await passwordMatches(db,user,body.password))error('Identifiant ou mot de passe incorrect.',401);
    return json(await session(db,user));
   }
-  const name=str(body.name,'Prénom',80,true),lastName=str(body.lastName||'','Nom',80),phone=str(body.phone||'','Téléphone',40),hash=await passwordHash(body.password);
+  const name=str(body.name,'Prénom',80,true),lastName=str(body.lastName||'','Nom',80),phone=str(body.phone||'','Téléphone',40);
   if(path==='/api/setup'){
    if(setupComplete)error('Initialisation indisponible.',403);
+   const hash=await passwordHash(body.password);
    const reserved=await stmt(db,"SELECT * FROM users WHERE role='admin' LIMIT 1").first();
    if(!reserved)error('Profil administrateur absent.',409);
    const duplicate=await stmt(db,'SELECT id FROM users WHERE email=? AND id!=?',email,reserved.id).first();
@@ -145,8 +146,9 @@ async function handle(request,db) {
    catch(e){if(/UNIQUE constraint failed: users\.email/i.test(String(e)))error('Cet identifiant est déjà utilisé.',409);throw e;}
    return json(await session(db,{...reserved,email,name,last_name:lastName,phone}),201);
   }
+  const role=await validateRegistrationCodes(db,body);
+  const hash=await passwordHash(body.password);
   if(await stmt(db,'SELECT id FROM users WHERE email=?',email).first())error('Cet identifiant est déjà utilisé.',409);
-  const role=body.coach?'coach':'athlete';
   const user={id:crypto.randomUUID(),email,name,last_name:lastName,phone,role,account_version:1};
   const actions=[stmt(db,'INSERT INTO users(id,email,name,role,last_name,phone) VALUES(?,?,?,?,?,?)',user.id,email,name,role,lastName,phone),credentialInsert(db,user.id,hash),db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'")];
   try{await db.batch(actions);}

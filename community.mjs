@@ -5,6 +5,7 @@ const schema=`
 CREATE TABLE IF NOT EXISTS account_created (user_id TEXT PRIMARY KEY, created INTEGER NOT NULL);
 CREATE TRIGGER IF NOT EXISTS record_account_created AFTER INSERT ON users BEGIN INSERT INTO account_created(user_id,created) VALUES(NEW.id,CAST(strftime('%s','now') AS INTEGER)*1000); END;
 CREATE TABLE IF NOT EXISTS account_credentials (user_id TEXT PRIMARY KEY, password_hash TEXT, initial_identifier TEXT, provisional INTEGER NOT NULL DEFAULT 1, version INTEGER NOT NULL DEFAULT 1);
+CREATE TABLE IF NOT EXISTS group_access_codes (id INTEGER PRIMARY KEY CHECK(id=1), group_code TEXT NOT NULL, coach_code TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS session_comments (session_id TEXT NOT NULL, user_id TEXT NOT NULL, rating INTEGER, body TEXT NOT NULL DEFAULT '', is_private INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL DEFAULT 1, updated INTEGER NOT NULL, PRIMARY KEY(session_id,user_id));
 CREATE TABLE IF NOT EXISTS competition_signups (competition_id TEXT NOT NULL, user_id TEXT NOT NULL, created INTEGER NOT NULL, PRIMARY KEY(competition_id,user_id));`;
 const fail=(message,status=400)=>{throw Object.assign(new Error(message),{status});};
@@ -45,8 +46,24 @@ export async function passwordMatches(db,user,value) {
 export function credentialInsert(db,id,hash) {
  return stmt(db,'INSERT INTO account_credentials(user_id,password_hash,provisional) VALUES(?,?,0)',id,hash);
 }
+export function exactAccessCode(value,label) {
+ if(typeof value!=='string'||!value.trim()||value.length>128)fail(`${label} requis.`);
+ return value;
+}
+export async function validateRegistrationCodes(db,body) {
+ const groupCode=exactAccessCode(body.groupCode,'Code du groupe');
+ if(typeof body.coach!=='boolean')fail('Choix du rôle coach invalide.');
+ const codes=await db.prepare('SELECT group_code,coach_code FROM group_access_codes WHERE id=1').first();
+ if(!codes||groupCode!==codes.group_code)fail('Code du groupe invalide.',403);
+ if(body.coach){
+  const coachCode=exactAccessCode(body.coachCode,'Code coach');
+  if(coachCode!==codes.coach_code)fail('Code coach invalide.',403);
+ }
+ return body.coach?'coach':'athlete';
+}
 export async function initializeCommunity(db) {
  await db.exec(schema);
+ await stmt(db,"INSERT OR IGNORE INTO group_access_codes(id,group_code,coach_code) VALUES(1,'NOUVEAU','COACH')").run();
  // Capture the existing identifier once: later renaming must not change a provisional password.
  await db.prepare('INSERT OR IGNORE INTO account_credentials(user_id,initial_identifier) SELECT id,email FROM users').run();
  if(await db.prepare("SELECT value FROM meta WHERE key='community_v1'").first())return;
@@ -68,14 +85,15 @@ export async function initializeCommunity(db) {
  await db.batch([db.prepare("INSERT OR IGNORE INTO meta VALUES ('community_v1',1)"),revision(db)]);
 }
 export async function communityState(db,ctx) {
- const [comments,signups,credentials]=await Promise.all([
+ const [comments,signups,credentials,accessCodes]=await Promise.all([
   stmt(db,`SELECT c.session_id AS sessionId,c.user_id AS userId,c.rating,c.body,c.is_private AS isPrivate,c.version,c.updated,u.name,u.last_name AS lastName
    FROM session_comments c JOIN users u ON u.id=c.user_id JOIN records r ON r.collection='sessions' AND r.id=c.session_id AND r.archived=0
    WHERE c.is_private=0 OR c.user_id=? OR ?='coach' ORDER BY c.updated`,ctx.id,ctx.role).all(),
   db.prepare(`SELECT s.competition_id AS competitionId,s.user_id AS userId,u.name,u.last_name AS lastName,u.role FROM competition_signups s JOIN users u ON u.id=s.user_id JOIN records r ON r.collection='competitions' AND r.id=s.competition_id AND r.archived=0 ORDER BY u.name,u.last_name`).all(),
-  credentialForUser(db,ctx)
+  credentialForUser(db,ctx),
+  ctx.role==='admin'?db.prepare('SELECT group_code AS groupCode,coach_code AS coachCode,version FROM group_access_codes WHERE id=1').first():null
  ]);
- return {comments:comments.results.map(c=>({...c,isPrivate:!!c.isPrivate})),signups:signups.results,passwordVersion:credentials.version,passwordProvisional:!!credentials.provisional};
+ return {comments:comments.results.map(c=>({...c,isPrivate:!!c.isPrivate})),signups:signups.results,passwordVersion:credentials.version,passwordProvisional:!!credentials.provisional,...(accessCodes?{accessCodes}: {})};
 }
 async function activeRecord(db,collection,id) {
  const row=await stmt(db,'SELECT * FROM records WHERE collection=? AND id=? AND archived=0',collection,id).first();
@@ -83,6 +101,39 @@ async function activeRecord(db,collection,id) {
  return {...JSON.parse(row.data),version:row.version};
 }
 export async function communityAction(db,ctx,path,method,body) {
+ if(path==='/api/access-codes'&&method==='PUT'){
+  if(ctx.role!=='admin')fail('Action réservée aux administrateurs.',403);
+  const groupCode=exactAccessCode(body.groupCode,'Code du groupe'),coachCode=exactAccessCode(body.coachCode,'Code coach');
+  if(!Number.isInteger(body.version)||body.version<1)fail('Version des codes invalide.');
+  const changed=await stmt(db,'UPDATE group_access_codes SET group_code=?,coach_code=?,version=version+1 WHERE id=1 AND version=?',groupCode,coachCode,body.version).run();
+  if(!changed.meta.changes)fail('Les codes ont été modifiés par un autre admin. Rechargez les réglages.',409);
+  await revision(db).run();
+  return {ok:true};
+ }
+ if(path==='/api/account/coach'&&method==='PUT'){
+  if(typeof body.coach!=='boolean'||!Number.isInteger(body.version))fail('Modification du rôle invalide.');
+  const member=await stmt(db,'SELECT role,account_version FROM users WHERE id=?',ctx.id).first();
+  if(member.role==='admin')fail('Le rôle admin se gère séparément des droits coach.',403);
+  if(member.account_version!==body.version)fail('Votre compte a changé. Rechargez les réglages.',409);
+  if((member.role==='coach')===body.coach)return {ok:true,role:member.role};
+  const nextRole=body.coach?'coach':'athlete';
+  let codeGuard='',codeParams=[];
+  if(body.coach){
+   const coachCode=exactAccessCode(body.coachCode,'Code coach');
+   const codes=await db.prepare('SELECT coach_code FROM group_access_codes WHERE id=1').first();
+   if(!codes||coachCode!==codes.coach_code)fail('Code coach invalide.',403);
+   codeGuard=' AND EXISTS (SELECT 1 FROM group_access_codes WHERE id=1 AND coach_code=?)';
+   codeParams=[coachCode];
+  }
+  const actions=[
+   stmt(db,`INSERT INTO role_events(actor,member,previous_role,next_role,created) SELECT ?,id,role,?,? FROM users WHERE id=? AND account_version=? AND role=?${codeGuard}`,ctx.id,nextRole,Date.now(),ctx.id,body.version,member.role,...codeParams),
+   stmt(db,`UPDATE users SET role=?,account_version=account_version+1 WHERE id=? AND account_version=? AND role=?${codeGuard}`,nextRole,ctx.id,body.version,member.role,...codeParams),
+   revision(db)
+  ];
+  const results=await db.batch(actions);
+  if(!results[1].meta.changes)fail(body.coach?'Le code coach a changé ou votre compte a été modifié. Rechargez puis réessayez.':'Votre compte a été modifié. Rechargez puis réessayez.',409);
+  return {ok:true,role:nextRole};
+ }
  const memberMatch=path.match(/^\/api\/members\/([^/]+)(?:\/(password|coach))?$/);
  if(memberMatch&&['PUT','DELETE'].includes(method)){
   if(ctx.role!=='admin')fail('Action réservée aux administrateurs.',403);

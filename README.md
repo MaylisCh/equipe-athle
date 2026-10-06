@@ -15,7 +15,9 @@ Il faut maintenant utiliser l’adresse du serveur, et non ouvrir `index.html` p
 - Identifiants et mots de passe respectent les majuscules et minuscules. Les identifiants déjà enregistrés restent tels quels. Pour les comptes créés avant cette évolution, le mot de passe provisoire est l’identifiant au moment de la migration ; il se change dans **Réglages → Mon mot de passe**. Un changement ultérieur d’identifiant ne change pas le mot de passe.
 - Le mot de passe est obligatoire mais n’a pas de minimum de longueur ou de règle de complexité. Les mots de passe personnels sont stockés avec sel et dérivation PBKDF2, jamais renvoyés aux autres comptes.
 - Un compte coach possède ses propres chronos, exactement comme un athlète. Aucun endpoint ne permet de lire ou de modifier les chronos d’un autre compte.
-- Chaque membre s’inscrit librement depuis **Inscription**, sans invitation. Le formulaire propose la case **Je suis coach** : si elle est cochée, le compte peut modifier les contenus du groupe. Ne partagez le lien du site qu’avec l’équipe.
+- L’inscription depuis **Inscription** demande le code du groupe. La case **Je suis coach** demande aussi le code coach ; ces codes respectent les majuscules et minuscules. Les valeurs initiales sont `NOUVEAU` et `COACH`.
+- Un membre athlète peut demander le rôle coach depuis **Réglages**, avec le code coach. Les admins voient les deux codes en clair dans leurs réglages et peuvent les remplacer. Les codes sont communs à tous les admins ; chaque changement invalide immédiatement l’ancienne valeur.
+- L’activation initiale du compte admin reste distincte de l’inscription au groupe. Un admin peut toujours attribuer ou retirer le rôle coach d’un autre membre depuis **Gestion des membres**.
 - Un membre ne peut pas s’accorder les droits d’administration : un admin doit le nommer depuis **Réglages**.
 
 ## Entraînements
@@ -67,11 +69,13 @@ Les modifications sont enregistrées dans la base commune et récupérées autom
 
 Après connexion, le site affiche toujours le planning. Les boutons de navigation sont dans la barre latérale sur ordinateur ; sur téléphone, le bouton « Menu » ouvre la liste des pages.
 
-**Réglages** permet de modifier uniquement ses propres identifiant de connexion, prénom, nom et téléphone et de consulter son rôle admin/coach/athlète. Le rôle n’est pas modifiable depuis le formulaire personnel. Un identifiant déjà utilisé est refusé ; après un changement, il faut utiliser le nouvel identifiant pour se reconnecter. Les chronos et le rôle restent liés au même profil.
+**Réglages** permet de modifier son identité et, pour un profil athlète ou coach, de demander ou retirer les droits coach. La demande pour devenir coach exige le code coach. Un admin ne peut pas modifier son rôle depuis cette case ; les rôles restent exclusifs.
 
 Un **admin** gère les comptes et les rôles ; il n’édite pas les séances. Un **coach** édite les contenus communs. Chaque profil, admin compris, a ses propres chronos.
 
-Dans **Réglages → Gestion des membres**, un admin peut nommer un membre admin ou coach, retirer ces droits, réinitialiser le mot de passe d’un autre membre ou supprimer son compte. La réinitialisation demande de saisir un nouveau mot de passe provisoire, sans règle de complexité, ferme toutes les connexions du membre et ne modifie pas ses chronos. Le membre peut ensuite changer ce mot de passe dans ses réglages. Les athlètes et coachs n’ont aucun de ces droits sur les autres comptes ; les contrôles sont aussi appliqués côté serveur. On ne peut jamais retirer ou supprimer le dernier admin. Les changements de rôles sont journalisés. Un membre qui perd ses droits admin retrouve son rôle précédent (coach ou athlète).
+Dans **Réglages → Codes d’accès au groupe**, tous les admins voient les deux codes partagés et peuvent les remplacer ; chaque modification invalide immédiatement l’ancienne valeur pour les prochaines inscriptions et demandes coach. Les valeurs de départ sont `NOUVEAU` et `COACH`. Les codes sont sensibles à la casse et seuls les admins les reçoivent de l’API.
+
+Dans **Réglages → Gestion des membres**, un admin peut nommer un membre admin ou coach, retirer ces droits, réinitialiser le mot de passe d’un autre membre ou supprimer son compte. La nomination directe d’un coach par un admin reste disponible. La réinitialisation demande de saisir un nouveau mot de passe provisoire, sans règle de complexité, ferme toutes les connexions du membre et ne modifie pas ses chronos. Le membre peut ensuite changer ce mot de passe dans ses réglages. Les athlètes et coachs n’ont aucun de ces droits sur les autres comptes ; les contrôles sont aussi appliqués côté serveur. On ne peut jamais retirer ou supprimer le dernier admin. Les changements de rôles sont journalisés. Un membre qui perd ses droits admin retrouve son rôle précédent (coach ou athlète).
 
 **Le groupe** affiche un tableau des membres (prénom, nom, téléphone, rôle, date d’ajout), avec recherche. Les dates d’ajout sont enregistrées pour les nouveaux comptes ; les dates anciennes inconnues restent « Non renseignée ». Seuls les comptes connectés y accèdent. Aucun chrono des autres membres n’y est transmis ; seuls les admins reçoivent les identifiants nécessaires à la gestion des comptes. Le téléphone est facultatif.
 
