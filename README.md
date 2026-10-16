@@ -14,7 +14,7 @@ Il faut maintenant utiliser l’adresse du serveur, et non ouvrir `index.html` p
 - Chaque ouverture ou rechargement de la page demande une connexion par identifiant et mot de passe. La navigation interne garde la session active.
 - Identifiants et mots de passe respectent les majuscules et minuscules. Les identifiants déjà enregistrés restent tels quels. Pour les comptes créés avant cette évolution, le mot de passe provisoire est l’identifiant au moment de la migration ; il se change dans **Réglages → Mon mot de passe**. Un changement ultérieur d’identifiant ne change pas le mot de passe.
 - Le mot de passe est obligatoire mais n’a pas de minimum de longueur ou de règle de complexité. Les mots de passe personnels sont stockés avec sel et dérivation PBKDF2, jamais renvoyés aux autres comptes.
-- Un compte coach possède ses propres chronos, exactement comme un athlète. Aucun endpoint ne permet de lire ou de modifier les chronos d’un autre compte.
+- Un compte coach possède ses propres références d’allure, exactement comme un athlète. Les références personnelles ne sont pas partagées. Les chronos de séance, distincts de ces références, sont visibles par leur auteur et les coachs ; chacun ne peut modifier que ses propres saisies.
 - L’inscription depuis **Inscription** demande le code du groupe. La case **Je suis coach** demande aussi le code coach ; ces codes respectent les majuscules et minuscules. Les valeurs initiales sont `NOUVEAU` et `COACH`.
 - Un membre athlète peut demander le rôle coach depuis **Réglages**, avec le code coach. Les admins voient les deux codes en clair dans leurs réglages et peuvent les remplacer. Les codes sont communs à tous les admins ; chaque changement invalide immédiatement l’ancienne valeur.
 - L’activation initiale du compte admin reste distincte de l’inscription au groupe. Un admin peut toujours attribuer ou retirer le rôle coach d’un autre membre depuis **Gestion des membres**.
@@ -49,7 +49,7 @@ Pour la distance demandée, le calcul suit la vitesse comme dans la feuille du c
 
 Le bouton **Commenter** ouvre une fenêtre avec une difficulté de 1 à 5 étoiles (très facile à très difficile) et un texte facultatif. Il faut remplir au moins l’un des deux. Chaque membre peut conserver un retour par séance, le modifier ou le supprimer, sur une séance passée ou future. Le retour suit la séance si elle est déplacée.
 
-Les commentaires sont publics au groupe par défaut. **Réservé à moi et aux coachs** rend le texte et la difficulté visibles seulement par l’auteur et les comptes coach. Les comptes admin ne voient pas les retours privés des autres. Le filtrage s’effectue dans l’API avant l’envoi des données au navigateur. La barre de difficulté moyenne utilise exclusivement les votes publics ; un commentaire sans vote n’entre pas dans cette moyenne.
+Les commentaires sont publics au groupe par défaut. **Réservé à moi et aux coachs** rend le texte et la difficulté visibles seulement par l’auteur et les comptes coach. Les admins non-coachs ne voient pas les retours privés des autres ; ceux ayant activé les fonctions coach les voient comme les coachs. Le filtrage s’effectue dans l’API avant l’envoi des données au navigateur. La barre de difficulté moyenne utilise exclusivement les votes publics ; un commentaire sans vote n’entre pas dans cette moyenne.
 
 ## Compétitions et inscriptions
 
@@ -69,9 +69,23 @@ Les modifications sont enregistrées dans la base commune et récupérées autom
 
 Après connexion, le site affiche toujours le planning. Les boutons de navigation sont dans la barre latérale sur ordinateur ; sur téléphone, le bouton « Menu » ouvre la liste des pages.
 
-**Réglages** permet de modifier son identité et, pour un profil athlète ou coach, de demander ou retirer les droits coach. La demande pour devenir coach exige le code coach. Un admin ne peut pas modifier son rôle depuis cette case ; les rôles restent exclusifs.
+**Réglages → Rôle dans le groupe** propose maintenant la case **Je suis coach** à tous les comptes. Un athlète doit saisir le code coach. Un admin peut activer/désactiver ses fonctions coach sans code supplémentaire et sans perdre son rôle ni ses droits admin, même s’il est le dernier admin.
 
-Un **admin** gère les comptes et les rôles ; il n’édite pas les séances. Un **coach** édite les contenus communs. Chaque profil, admin compris, a ses propres chronos.
+Un **admin** gère les comptes et les rôles ; s’il active les fonctions coach, il peut aussi éditer les contenus et consulter les retours/résultats du groupe comme un coach. Sans cette option, ses droits restent ceux d’un admin non-coach. Chaque profil a ses propres chronos.
+
+## Allures et Chrono Séance
+
+L’ancien onglet **Mes chronos** s’appelle **Allures** (l’adresse interne `#chronos` reste compatible). Il conserve le calculateur et les chronos de référence personnels.
+
+Le nouvel onglet **Chrono Séance** permet de choisir une date passée, présente ou future, puis une séance s’il y en a plusieurs ce jour-là. Saisir par exemple `25,4 - 25.8 / 26 ; 1:02,5` : point/virgule pour les décimales ; tiret, point-virgule, slash, espace ou saut de ligne pour séparer les répétitions. Un aperçu numéroté est affiché avant enregistrement. De 1 à 200 chronos positifs sont acceptés, jusqu’à 4000 caractères.
+
+La frise affiche une semaine avec les jours/dates et permet de naviguer à gauche/droite, ou vers les jours renseignés précédent/suivant. Le détail ouvre la séance du planning et les chronos associés ; un tableau récapitule toutes les séances renseignées. Un lien sur chaque séance du planning ouvre directement son carnet.
+
+Les athlètes et admins non-coachs ne reçoivent que leurs propres résultats. Les coachs et admins ayant activé les fonctions coach voient les chronos des membres dans un tableau, sans pouvoir les modifier pour eux. Le formulaire du haut reste personnel pour tous. Les boutons de l’historique permettent de modifier/supprimer ses propres résultats. Une actualisation manuelle est disponible sans effacer silencieusement une saisie en cours.
+
+Ces chronos sont stockés séparément des références d’Allures, par identifiant de séance et identifiant de membre. Ils suivent une séance déplacée ; les chronos déjà saisis restent consultables et corrigeables si le coach l’archive. Une date sans séance ne permet pas d’inventer une entrée indépendante du planning. Supprimer un compte efface aussi ses résultats personnels, pas les séances partagées.
+
+Migration additive : nouvelles tables `session_results` et `admin_coach_access`, aucune remise à zéro des comptes ou contenus. Les droits coach sont évalués côté serveur pour les contenus, imports, retours privés et résultats. `npm run test:results-browser` vérifie le nouveau parcours ; `npm test` inclut `session-results-test.mjs`.
 
 Dans **Réglages → Codes d’accès au groupe**, tous les admins voient les deux codes partagés et peuvent les remplacer ; chaque modification invalide immédiatement l’ancienne valeur pour les prochaines inscriptions et demandes coach. Les valeurs de départ sont `NOUVEAU` et `COACH`. Les codes sont sensibles à la casse et seuls les admins les reçoivent de l’API.
 
@@ -87,6 +101,8 @@ Les Word et Excel du dossier parent sont exclusivement lus. Aucun traitement n�
 
 - `Saison hivernale 2026 2027.xlsx` fournit les séances détaillées depuis ses onglets Cycle. Les dates sont rattachées à la saison 2026–2027, même si l’onglet annuel de ce fichier porte par erreur le nom `20252026`. La feuille `20262027` de la copie `Vathlète` sert de référence pour l’année de la planification ; ses onglets Cycle moins détaillés ne remplacent pas les séances du classeur principal.
 - Les cellules « Repos » ne créent pas de séance : le jour reste vide. Les semaines incomplètes restent incomplètes.
+- Les coachs disposent d’un onglet **Importer les séances** pour déposer, choisir ou coller un `.xlsx` ou `.csv`. Le lecteur reconnaît les tableaux avec une date par ligne et les grilles de semaine avec les jours en lignes ou en colonnes. Il montre chaque date, séance, remplacement et repos dans un aperçu avant d’exiger la case **Je confirme l’importation**.
+- L’import ne touche jamais aux séances de la semaine en cours ou des semaines précédentes. Les dates anciennes d’un fichier mixte sont simplement ignorées et comptées dans l’aperçu. Pour les dates futures présentes dans le tableau, une cellule vide ou « Repos » efface les séances du jour ; une nouvelle séance remplace toutes celles de ce jour. La séparation échauffement/séance reprend les indices déjà utilisés dans les classeurs saisonniers : colonne échauffement, mention explicite « à l’échauffement », ou ligne initiale de renforcement/gammes identifiable ; sinon, le champ échauffement reste vide. Les conditions du type « Vitesse/technique si stage » gardent l’activité comme titre et placent « Si stage » en sous-titre ; le type est déduit du titre d’activité, sans limiter les titres acceptés à une liste fermée. Le sous-titre reste visible dans le planning et modifiable par le coach.
 - Le Word d’une semaine antérieure fournit uniquement les définitions et circuits. Ses séances ne sont pas mélangées au calendrier des cycles.
 - `Muscu 2309.xlsx` n’est pas affecté arbitrairement à la séance de force excentrique d’un autre cycle.
 - Une note coach signale que la consigne du 1er octobre indique `(800)`, alors que `2×250 + 2×200` totalise 900 m. Le texte original est conservé, sans correction du document.

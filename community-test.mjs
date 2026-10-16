@@ -42,7 +42,9 @@ test('API Cloudflare : migration sans perte, mots de passe, confidentialité et 
  assert.equal((await request('/auth')).status,200);
  assert.deepEqual(native.prepare('SELECT * FROM users ORDER BY id').all(),usersBefore);
  for(const original of recordsBefore)assert.deepEqual(native.prepare('SELECT * FROM records WHERE collection=? AND id=?').get(original.collection,original.id),original);
- assert.equal(native.prepare("SELECT COUNT(*) AS n FROM records WHERE collection='sessions'").get().n,3,'No 90-day cleanup or reseeding');
+ const sessionsAfterInitialization=native.prepare("SELECT COUNT(*) AS n FROM records WHERE collection='sessions'").get().n;
+ await request('/auth');
+ assert.equal(native.prepare("SELECT COUNT(*) AS n FROM records WHERE collection='sessions'").get().n,sessionsAfterInitialization,'No 90-day cleanup or reseeding');
  const login=async id=>{const result=await request('/login','POST',{email:id,password:id});assert.equal(result.status,200,JSON.stringify(result.json));return result.json;};
  const alice=await login('alice'),bob=await login('bob'),coach=await login('coach'),owner=await login('maylis');
  assert.equal((await request('/login','POST',{email:'Alice',password:'alice'})).status,401);
@@ -63,8 +65,8 @@ test('API Cloudflare : migration sans perte, mots de passe, confidentialité et 
  await initializeCommunity(DB);
  assert.equal(native.prepare('SELECT password_hash FROM account_credentials WHERE user_id=?').get('alice').password_hash,storedHash,'Migration cannot reset an existing password');
  assert.deepEqual(native.prepare('SELECT * FROM users ORDER BY id').all(),usersBefore);
- const caseAccount=await request('/register','POST',{email:'Alice',password:' Z ',name:'Autre Alice'});assert.equal(caseAccount.status,201);
- assert.equal((await request('/register','POST',{email:'Alice',password:'x',name:'Doublon'})).status,409);
+ const caseAccount=await request('/register','POST',{email:'Alice',password:' Z ',name:'Autre Alice',groupCode:'NOUVEAU',coach:false});assert.equal(caseAccount.status,201);
+ assert.equal((await request('/register','POST',{email:'Alice',password:'x',name:'Doublon',groupCode:'NOUVEAU',coach:false})).status,409);
  assert.equal((await request('/login','POST',{email:'Alice',password:'Z'})).status,401);
  assert.equal((await request('/login','POST',{email:'Alice',password:' Z '})).status,200);
  assert.equal((await request('/account','PUT',{email:'Alice',name:'alice',version:1},alice)).status,409);
@@ -142,7 +144,7 @@ test('API Cloudflare : migration sans perte, mots de passe, confidentialité et 
  assert.equal((await state(owner)).competitions.some(c=>c.id===legacy.id),true);
  assert.deepEqual((await state(bob)).profile.times,{200:28});
  assert.equal((await request('/members/maylis','DELETE',{version:1,identifier:'maylis',confirm:true},owner)).status,409);
- const successor=(await request('/register','POST',{email:'Successeur',password:'x',name:'Admin temporaire'})).json;
+ const successor=(await request('/register','POST',{email:'Successeur',password:'x',name:'Admin temporaire',groupCode:'NOUVEAU',coach:false})).json;
  assert.equal((await request('/members/'+successor.user.id+'/admin','PUT',{action:'grant-admin',expectedRole:'athlete'},owner)).status,200);
  assert.equal((await request('/members/'+successor.user.id,'DELETE',{version:2,identifier:'Successeur',confirm:true},owner)).status,200,'An admin can delete another admin while retaining a successor');
  assert.equal((await state(owner)).members.filter(m=>m.role==='admin').length,1);

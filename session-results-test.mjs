@@ -1,0 +1,67 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {readFileSync} from 'node:fs';
+import {sqliteD1} from './sqlite-d1.mjs';
+import {parseSessionTimes} from './session-results-core.mjs';
+
+test('Chronos séance : décimales, séparateurs, minutes et saisies invalides',()=>{
+ assert.deepEqual(parseSessionTimes('25,4 - 25.8 / 26 ; 1:02,5\n27'),[25.4,25.8,26,62.5,27]);
+ for(const value of ['', 'abc','1,2.3','0','1:70','1e3','<script>','; / -', '1 '.repeat(201)])assert.throws(()=>parseSessionTimes(value));
+});
+
+test('Pages : admin + coach, confidentialité des résultats, modifications, déplacements et migrations',async t=>{
+ const native=new DatabaseSync(':memory:'),DB=sqliteD1(native);t.after(()=>native.close());
+ const code=readFileSync(new URL('./functions/api/[[path]].js',import.meta.url),'utf8').replace("import seed from '../../seed.json';",`const seed=${readFileSync(new URL('./seed.json',import.meta.url),'utf8')};`).replace(/from '\.\.\/\.\.\/([^']+)'/g,(_,path)=>`from '${new URL(path,import.meta.url).href}'`);
+ const {onRequest}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
+ const request=async(path,method='GET',body,who)=>{
+  const response=await onRequest({env:{DB},request:new Request('https://equipe.test/api'+path,{method,headers:{'Content-Type':'application/json',...(who?{Authorization:'Bearer '+who.accessToken}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})})});return {status:response.status,json:await response.json()};
+ };
+ await request('/auth');
+ const owner=(await request('/setup','POST',{email:'maylis',name:'Maylis',password:'x'})).json;
+ assert.ok(owner.accessToken);
+ const register=async(email,coach=false)=>(await request('/register','POST',{email,name:email,password:'x',coach,groupCode:'NOUVEAU',coachCode:'COACH'})).json;
+ const alice=await register('Alice'),bob=await register('Bob'),coach=await register('Coach',true);
+ const state=async who=>(await request('/state','GET',undefined,who)).json;
+ const s1=(await request('/sessions','POST',{title:'Matin',date:'2026-10-16',type:'speed',slot:'matin',warmup:'Échauffement A',workout:'3 × 200',targets:[]},coach)).json;
+ const s2=(await request('/sessions','POST',{title:'Soir',date:'2026-10-16',type:'strength',slot:'soir',targets:[]},coach)).json;
+ const path='/sessions/'+s1.id+'/times';
+ assert.equal((await request(path,'PUT',{rawText:'25,4 / 26',version:0,userId:bob.user.id},alice)).status,200);
+ assert.equal((await request(path,'PUT',{rawText:'27 - 28',version:0},bob)).status,200);
+ assert.equal((await request('/sessions/'+s2.id+'/times','PUT',{rawText:'30',version:0},alice)).status,200);
+ assert.equal((await state(alice)).sessionResults.length,2);assert.ok((await state(alice)).sessionResults.every(r=>r.userId===alice.user.id));
+ assert.equal((await state(bob)).sessionResults.length,1);assert.equal((await state(coach)).sessionResults.length,3);
+ assert.equal((await state(owner)).sessionResults.length,0,'Admin without coach powers cannot read group times');
+ assert.equal((await request('/sessions/'+s1.id+'/comment','PUT',{rating:3,body:'Privé coach',isPrivate:true,version:0},alice)).status,200);
+ assert.equal((await state(owner)).comments.some(c=>c.body==='Privé coach'),false);
+ assert.equal((await request(path,'PUT',{rawText:'29',version:1,userId:alice.user.id},coach)).status,409,'Coach cannot write to another member’s existing record');
+ assert.equal((await request(path,'PUT',{rawText:'25,8 ; 26.2',version:1},alice)).status,200);
+ assert.equal((await request(path,'PUT',{rawText:'99',version:1},alice)).status,409);
+ assert.deepEqual((await state(alice)).sessionResults.find(r=>r.sessionId===s1.id).times,[25.8,26.2]);
+ assert.equal((await request('/account/coach','PUT',{coach:true,version:1},owner)).status,200);
+ let adminState=await state(owner);assert.equal(adminState.user.role,'admin');assert.equal(adminState.user.coachEnabled,true);assert.equal(adminState.sessionResults.length,3);assert.ok(adminState.accessCodes);
+ assert.equal(adminState.comments.some(c=>c.body==='Privé coach'),true,'Admin with coach powers can read coach-private feedback');
+ assert.equal((await request('/sessions','POST',{title:'Séance par admin coach',date:'2030-01-01',type:'speed',targets:[]},owner)).status,201);
+ assert.equal((await request(path,'PUT',{rawText:'32',version:0},owner)).status,200);
+ assert.equal((await request('/profile','PUT',{times:{200:24},version:adminState.profileVersion},owner)).status,200);
+ assert.deepEqual((await state(owner)).profile.times,{200:24});assert.deepEqual((await state(alice)).profile.times,undefined);
+ const moved={...s1,date:'2026-10-20'};assert.equal((await request('/sessions/'+s1.id,'PUT',moved,coach)).status,200);
+ assert.equal((await state(alice)).sessionResults.find(r=>r.sessionId===s1.id).session.date,'2026-10-20');
+ assert.equal((await request('/sessions/'+s1.id,'DELETE',{version:2},coach)).status,200);
+ assert.equal((await state(alice)).sessionResults.find(r=>r.sessionId===s1.id).session.archived,true);
+ assert.equal((await request(path,'PUT',{rawText:'26',version:2},alice)).status,200,'Existing archived results remain editable');
+ assert.equal((await request('/account/coach','PUT',{coach:false,version:2},owner)).status,200);
+ adminState=await state(owner);assert.equal(adminState.user.role,'admin');assert.equal(adminState.user.coachEnabled,false);assert.equal(adminState.sessionResults.length,1);
+ assert.equal(adminState.comments.some(c=>c.body==='Privé coach'),false);
+ assert.equal((await request('/sessions','POST',{title:'Non autorisée',date:'2030-01-01',type:'speed',targets:[]},owner)).status,403);
+ assert.equal((await request('/account/coach','PUT',{coach:true,version:3},alice)).status,409);
+ assert.equal((await request('/account/coach','PUT',{coach:true,version:1},bob)).status,400);
+ assert.equal((await request(path,'DELETE',{version:3,userId:bob.user.id},alice)).status,200);
+ assert.equal((await state(bob)).sessionResults.length,1);
+ assert.equal((await request('/account','DELETE',{identifier:'Bob',confirm:true},bob)).status,200);
+ assert.equal(native.prepare('SELECT COUNT(*) AS n FROM session_results WHERE user_id=?').get(bob.user.id).n,0);
+ assert.equal((await state(coach)).sessionResults.some(r=>r.userId===bob.user.id),false);
+ const {initializeCommunity}=await import('./community.mjs');await initializeCommunity(DB);
+ assert.equal((await state(alice)).sessionResults.length,1,'Migration preserves personal results');
+ assert.deepEqual((await state(owner)).profile.times,{200:24});
+});

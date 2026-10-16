@@ -1,5 +1,7 @@
 import { competitionData, mondayOf } from './community-core.mjs';
 import { seasonWeekDate } from './season.mjs';
+import {canCoach,resultsSchema,sessionResultsState,sessionResultsAction} from './session-results.mjs';
+export {canCoach} from './session-results.mjs';
 
 const schema=`
 CREATE TABLE IF NOT EXISTS account_created (user_id TEXT PRIMARY KEY, created INTEGER NOT NULL);
@@ -63,6 +65,7 @@ export async function validateRegistrationCodes(db,body) {
 }
 export async function initializeCommunity(db) {
  await db.exec(schema);
+ await db.exec(resultsSchema);
  await stmt(db,"INSERT OR IGNORE INTO group_access_codes(id,group_code,coach_code) VALUES(1,'NOUVEAU','COACH')").run();
  // Capture the existing identifier once: later renaming must not change a provisional password.
  await db.prepare('INSERT OR IGNORE INTO account_credentials(user_id,initial_identifier) SELECT id,email FROM users').run();
@@ -88,12 +91,12 @@ export async function communityState(db,ctx) {
  const [comments,signups,credentials,accessCodes]=await Promise.all([
   stmt(db,`SELECT c.session_id AS sessionId,c.user_id AS userId,c.rating,c.body,c.is_private AS isPrivate,c.version,c.updated,u.name,u.last_name AS lastName
    FROM session_comments c JOIN users u ON u.id=c.user_id JOIN records r ON r.collection='sessions' AND r.id=c.session_id AND r.archived=0
-   WHERE c.is_private=0 OR c.user_id=? OR ?='coach' ORDER BY c.updated`,ctx.id,ctx.role).all(),
+   WHERE c.is_private=0 OR c.user_id=? OR ?=1 ORDER BY c.updated`,ctx.id,Number(canCoach(ctx))).all(),
   db.prepare(`SELECT s.competition_id AS competitionId,s.user_id AS userId,u.name,u.last_name AS lastName,u.role FROM competition_signups s JOIN users u ON u.id=s.user_id JOIN records r ON r.collection='competitions' AND r.id=s.competition_id AND r.archived=0 ORDER BY u.name,u.last_name`).all(),
   credentialForUser(db,ctx),
   ctx.role==='admin'?db.prepare('SELECT group_code AS groupCode,coach_code AS coachCode,version FROM group_access_codes WHERE id=1').first():null
  ]);
- return {comments:comments.results.map(c=>({...c,isPrivate:!!c.isPrivate})),signups:signups.results,passwordVersion:credentials.version,passwordProvisional:!!credentials.provisional,...(accessCodes?{accessCodes}: {})};
+ return {comments:comments.results.map(c=>({...c,isPrivate:!!c.isPrivate})),signups:signups.results,sessionResults:await sessionResultsState(db,ctx),passwordVersion:credentials.version,passwordProvisional:!!credentials.provisional,...(accessCodes?{accessCodes}: {})};
 }
 async function activeRecord(db,collection,id) {
  const row=await stmt(db,'SELECT * FROM records WHERE collection=? AND id=? AND archived=0',collection,id).first();
@@ -101,6 +104,7 @@ async function activeRecord(db,collection,id) {
  return {...JSON.parse(row.data),version:row.version};
 }
 export async function communityAction(db,ctx,path,method,body) {
+ const result=await sessionResultsAction(db,ctx,path,method,body);if(result)return result;
  if(path==='/api/access-codes'&&method==='PUT'){
   if(ctx.role!=='admin')fail('Action réservée aux administrateurs.',403);
   const groupCode=exactAccessCode(body.groupCode,'Code du groupe'),coachCode=exactAccessCode(body.coachCode,'Code coach');
@@ -113,7 +117,15 @@ export async function communityAction(db,ctx,path,method,body) {
  if(path==='/api/account/coach'&&method==='PUT'){
   if(typeof body.coach!=='boolean'||!Number.isInteger(body.version))fail('Modification du rôle invalide.');
   const member=await stmt(db,'SELECT role,account_version FROM users WHERE id=?',ctx.id).first();
-  if(member.role==='admin')fail('Le rôle admin se gère séparément des droits coach.',403);
+  if(member.role==='admin'){
+   if(member.account_version!==body.version)fail('Votre compte a changé. Rechargez les réglages.',409);
+   const results=await db.batch([
+    stmt(db,`INSERT INTO admin_coach_access(user_id,enabled) SELECT id,? FROM users WHERE id=? AND account_version=? AND role='admin' ON CONFLICT(user_id) DO UPDATE SET enabled=excluded.enabled`,Number(body.coach),ctx.id,body.version),
+    stmt(db,"UPDATE users SET account_version=account_version+1 WHERE id=? AND account_version=? AND role='admin'",ctx.id,body.version),revision(db)
+   ]);
+   if(!results[1].meta.changes)fail('Votre compte a changé. Rechargez les réglages.',409);
+   return {ok:true,role:'admin',coachEnabled:body.coach};
+  }
   if(member.account_version!==body.version)fail('Votre compte a changé. Rechargez les réglages.',409);
   if((member.role==='coach')===body.coach)return {ok:true,role:member.role};
   const nextRole=body.coach?'coach':'athlete';
@@ -167,7 +179,7 @@ export async function communityAction(db,ctx,path,method,body) {
    if(body.confirm!==true||body.identifier!==member.email)fail('Confirmez avec l’identifiant exact du membre.');
    if(member.role==='admin'&&(await db.prepare("SELECT COUNT(*) AS n FROM users WHERE role='admin'").first()).n<=1)fail('Le dernier administrateur ne peut pas être supprimé.',409);
    const deletionGuard="EXISTS (SELECT 1 FROM users WHERE id=? AND account_version=? AND (role<>'admin' OR (SELECT COUNT(*) FROM users WHERE role='admin')>1))";
-   const actions=['auth','account_credentials','session_comments','competition_signups','account_created'].map(table=>stmt(db,`DELETE FROM ${table} WHERE user_id=? AND ${deletionGuard}`,id,id,body.version));
+   const actions=['auth','account_credentials','session_comments','competition_signups','account_created','session_results','admin_coach_access'].map(table=>stmt(db,`DELETE FROM ${table} WHERE user_id=? AND ${deletionGuard}`,id,id,body.version));
    actions.push(stmt(db,`DELETE FROM users WHERE id=? AND account_version=? AND (role<>'admin' OR (SELECT COUNT(*) FROM users WHERE role='admin')>1)`,id,body.version),revision(db));
    const results=await db.batch(actions);
    if(!results[actions.length-2].meta.changes)fail('Suppression impossible : compte modifié ou dernier admin.',409);
@@ -224,7 +236,7 @@ export async function communityAction(db,ctx,path,method,body) {
  fail('Route introuvable.',404);
 }
 export function removeMemberCommunity(db,id) {
- return ['account_credentials','session_comments','competition_signups','account_created'].map(table=>stmt(db,`DELETE FROM ${table} WHERE user_id=?`,id));
+ return ['account_credentials','session_comments','competition_signups','account_created','session_results','admin_coach_access'].map(table=>stmt(db,`DELETE FROM ${table} WHERE user_id=?`,id));
 }
 export async function syncSessionCompetition(db,session) {
  const id=`session-${session.id}`,row=await stmt(db,"SELECT * FROM records WHERE collection='competitions' AND id=?",id).first();

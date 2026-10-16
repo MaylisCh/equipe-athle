@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -98,7 +98,7 @@ test('Comptes indépendants, droits, éditions, échanges, conflits et persistan
   const response=await fetch(origin+'/api'+path,{method,headers:{Origin:origin,'Content-Type':'application/json',...(session?{Authorization:`Bearer ${session.accessToken}`,'X-CSRF-Token':session.csrf}:{})},body:body===undefined?undefined:JSON.stringify(body)});
   const json=await response.json();return {status:response.status,json};
  }
- const credentials=(email)=>({email,name:email,password:'x'});
+ const credentials=(email)=>({email,name:email,password:'x',groupCode:'NOUVEAU',coachCode:'COACH',coach:false});
  let result=await request('/state');assert.equal(result.status,401);
  const owner=(await request('/setup','POST',{...credentials('maylis'),name:'Maylis',lastName:'Chancerelle'})).json;assert.equal(owner.user.role,'admin');
  assert.equal((await request('/setup','POST',credentials('intrus'))).status,403);
@@ -112,7 +112,7 @@ test('Comptes indépendants, droits, éditions, échanges, conflits et persistan
  const coach2=(await request('/register','POST',{...credentials('coach2'),coach:true})).json;assert.equal(coach2.user.role,'coach');
  assert.equal((await request('/invitations','POST',{},admin)).status,404);
  let original=(await request('/state','GET',undefined,admin)).json;
- assert.equal(original.sessions.length,101);assert.equal(original.info.length,12);assert.equal(original.library.length,11);
+ assert.equal(original.sessions.length,JSON.parse(readFileSync(new URL('./seed.json',import.meta.url),'utf8')).sessions.length);assert.equal(original.info.length,12);assert.equal(original.library.length,11);
  assert.equal(original.season.weeklyLoads.length,105);
  assert.equal(original.season.generalPeriods[1].label,'Développement général → orienté → spécifique');
  const changedSeason=JSON.parse(JSON.stringify(original.season));

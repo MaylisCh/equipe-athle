@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { library, info } from './content.mjs';
 import { defaultSeason, normalizeSeason } from './season.mjs';
-import { initializeCommunity, passwordHash, passwordMatches, validateRegistrationCodes, communityState, communityAction, syncSessionCompetition } from './community.mjs';
+import { canCoach, initializeCommunity, passwordHash, passwordMatches, validateRegistrationCodes, communityState, communityAction, syncSessionCompetition } from './community.mjs';
 import { sqliteD1 } from './sqlite-d1.mjs';
 import { detailedImportMarker, legacyRestDates, nextWeekStartParis } from './session-import.mjs';
 
@@ -96,7 +96,7 @@ function recordData(collection, body) {
   Object.assign(result, {date:validDate(body.date), type:body.type, slot:body.slot || 'non-precise'});
   if(!['auto','none','light','medium','high'].includes(body.load || 'auto'))fail('Charge de séance invalide.');
   result.load=body.load || 'auto';
-  for (const field of ['warmup','workout','v2','coachNote','cycle']) result[field]=text(body[field] ?? '',field);
+  for (const field of ['subtitle','warmup','workout','v2','coachNote','cycle']) result[field]=text(body[field] ?? '',field);
   if (!Array.isArray(body.targets) || body.targets.length > 20) fail('Allures invalides.');
   result.targets=body.targets.map(t=>{
    if (!Number.isInteger(t.distance) || t.distance<=0 || t.distance>10000) fail('Distance cible invalide.');
@@ -147,9 +147,9 @@ function throttle(key) {
 function context(req) {
  const bearer=req.headers.authorization;
  if (!bearer?.startsWith('Bearer ')) return null;
- return db.prepare('SELECT auth.token,auth.csrf,users.id,users.name,users.email,users.role,users.profile,users.profile_version,users.last_name,users.phone,users.account_version FROM auth JOIN users ON users.id=auth.user_id WHERE token=? AND expires>?').get(hash(bearer.slice(7)), Date.now());
+ return db.prepare('SELECT auth.token,auth.csrf,users.id,users.name,users.email,users.role,users.profile,users.profile_version,users.last_name,users.phone,users.account_version,(SELECT enabled FROM admin_coach_access WHERE user_id=users.id) AS coachEnabled FROM auth JOIN users ON users.id=auth.user_id WHERE token=? AND expires>?').get(hash(bearer.slice(7)), Date.now());
 }
-function publicUser(u) {return {id:u.id,name:u.name,lastName:u.last_name||'',phone:u.phone||'',email:u.email,role:u.role,accountVersion:u.account_version||1};}
+function publicUser(u) {return {id:u.id,name:u.name,lastName:u.last_name||'',phone:u.phone||'',email:u.email,role:u.role,coachEnabled:!!u.coachEnabled,accountVersion:u.account_version||1};}
 function loginCookie(res, user) {
  const token=randomBytes(32).toString('hex'), csrf=randomBytes(24).toString('hex');
  db.prepare('DELETE FROM auth WHERE expires<?').run(Date.now());
@@ -164,6 +164,8 @@ async function bodyJSON(req) {
 const allowedStatic = new Map([
  ['/', ['index.html','text/html']], ['/index.html',['index.html','text/html']],
  ['/community-core.mjs',['community-core.mjs','text/javascript']],
+ ['/session-results-core.mjs',['session-results-core.mjs','text/javascript']],
+ ['/session-upload.mjs',['session-upload.mjs','text/javascript']],
  ['/community.css',['community.css','text/css']],
  ['/app.js',['app.js','text/javascript']], ['/core.mjs',['core.mjs','text/javascript']], ['/season.mjs',['season.mjs','text/javascript']], ['/style.css',['style.css','text/css']], ['/layout.css',['layout.css','text/css']], ['/calendar.css',['calendar.css','text/css']], ['/service-worker.js',['service-worker.js','text/javascript']], ['/manifest.webmanifest',['manifest.webmanifest','application/manifest+json']], ['/puc-logo.png',['puc-logo.png','image/png']]
 ]);
@@ -234,11 +236,11 @@ async function handle(req,res) {
    db.prepare('DELETE FROM auth WHERE token=?').run(ctx.token);reply({ok:true});return;
   }
   if(req.method==='GET' && path==='/api/state') {
-   const result={revision:db.prepare("SELECT value FROM meta WHERE key='revision'").get().value,user:publicUser(ctx),members:db.prepare(`SELECT id,name,last_name AS lastName,phone,role,(SELECT created FROM account_created WHERE user_id=users.id) AS createdAt ${ctx.role==='admin'?',email,account_version AS accountVersion':''} FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE`).all(),profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[],competitions:[],season:null,...await communityState(featureDB,ctx)};
+   const result={revision:db.prepare("SELECT value FROM meta WHERE key='revision'").get().value,user:publicUser(ctx),members:db.prepare(`SELECT id,name,last_name AS lastName,phone,role,(SELECT enabled FROM admin_coach_access WHERE user_id=users.id) AS coachEnabled,(SELECT created FROM account_created WHERE user_id=users.id) AS createdAt ${ctx.role==='admin'?',email,account_version AS accountVersion':''} FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE`).all(),profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[],competitions:[],season:null,...await communityState(featureDB,ctx)};
    for(const row of db.prepare('SELECT * FROM records WHERE archived=0 ORDER BY rowid').all()) {
     const item={...JSON.parse(row.data),version:row.version};
     if(row.collection==='season'){result.season=item;continue;}
-    if(ctx.role!=='coach'){delete item.coachNote;delete item.sourceText;}
+    if(!canCoach(ctx)){delete item.coachNote;delete item.sourceText;}
     result[row.collection].push(item);
    }
    reply(result);return;
@@ -274,7 +276,7 @@ async function handle(req,res) {
     const member=db.prepare('SELECT role FROM users WHERE id=?').get(ctx.id);
     if(member.role==='admin' && db.prepare("SELECT COUNT(*) AS count FROM users WHERE role='admin'").get().count<=1)fail('Nommez un autre administrateur avant de supprimer votre profil.',409);
     db.prepare('DELETE FROM auth WHERE user_id=?').run(ctx.id);
-    for(const table of ['account_credentials','session_comments','competition_signups','account_created'])db.prepare(`DELETE FROM ${table} WHERE user_id=?`).run(ctx.id);
+    for(const table of ['account_credentials','session_comments','competition_signups','account_created','session_results','admin_coach_access'])db.prepare(`DELETE FROM ${table} WHERE user_id=?`).run(ctx.id);
     db.prepare('DELETE FROM users WHERE id=?').run(ctx.id);bump();
    });reply({ok:true});return;
   }
@@ -302,11 +304,34 @@ async function handle(req,res) {
   }
   const community=await communityAction(featureDB,ctx,path,req.method,body);
   if(community){reply(community,req.method==='POST'?201:200);return;}
-  if(ctx.role!=='coach')fail('Cette action est réservée au coach.',403);
+  if(!canCoach(ctx))fail('Cette action est réservée au coach.',403);
   if(req.method==='PUT'&&path==='/api/season'){
    let data;try{data=normalizeSeason(body);}catch(e){fail(e.message);}
    const updated=atomic(()=>{const old=readRecord('season','2026-2027');versionCheck(old.version,body.version);db.prepare('UPDATE records SET data=?,version=? WHERE collection=? AND id=?').run(JSON.stringify(data),old.version+1,'season','2026-2027');bump();return {...data,version:old.version+1};});
    reply(updated);return;
+  }
+  if(req.method==='POST'&&path==='/api/sessions/import'){
+   if(!canCoach(ctx))fail('Cette action est réservée au coach.',403);
+   if(body.confirm!==true||!Array.isArray(body.days)||!body.days.length||body.days.length>500||!Number.isInteger(body.revision))fail('Confirmation ou journées importées invalides.');
+   const currentRevision=db.prepare("SELECT value FROM meta WHERE key='revision'").get()?.value;
+   if(currentRevision!==body.revision)fail('Le planning a changé depuis l’aperçu. Rechargez la page et vérifiez à nouveau les changements.',409);
+   const cutoff=nextWeekStartParis(),unique=new Set(),days=[];
+   for(const source of body.days){
+    if(!source||typeof source!=='object')fail('Journée importée invalide.');
+    const date=validDate(source.date);if(unique.has(date))fail('Le fichier contient plusieurs lignes pour une même date.');unique.add(date);if(date<cutoff)continue;
+    if(source.rest===true){days.push({date,rest:true});continue;}
+    const id=randomUUID(),data={...recordData('sessions',{title:source.title,subtitle:source.subtitle||'',type:source.type,date,slot:'non-precise',load:'auto',warmup:source.warmup||'',workout:source.workout||'',v2:source.v2||'',coachNote:'',cycle:source.source||'',targets:[]}),id,version:1};
+    days.push({date,rest:false,id,data:JSON.stringify(data)});
+   }
+   if(!days.length)fail('Aucune journée importable à partir de la semaine prochaine.');
+   const dates=days.map(day=>day.date),newSessions=days.filter(day=>!day.rest);
+   atomic(()=>{
+    const latest=db.prepare("SELECT value FROM meta WHERE key='revision'").get()?.value;if(latest!==body.revision)fail('Le planning a changé depuis l’aperçu. Rechargez la page et vérifiez à nouveau les changements.',409);
+    db.prepare("UPDATE records SET archived=1,version=version+1 WHERE collection='sessions' AND archived=0 AND json_extract(data,'$.date') IN (SELECT value FROM json_each(?))").run(JSON.stringify(dates));
+    db.prepare("INSERT INTO records(collection,id,data,version,archived) SELECT 'sessions',json_extract(value,'$.id'),json_extract(value,'$.data'),1,0 FROM json_each(?)").run(JSON.stringify(newSessions));
+    bump();
+   });
+   reply({ok:true,appliedDates:days.length,sessions:newSessions.length,rests:days.length-newSessions.length,cutoff});return;
   }
   const match=path.match(/^\/api\/(sessions|library|info)(?:\/([^/]+))?$/);
   if(!match)fail('Route introuvable.',404);

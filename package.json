@@ -8,8 +8,9 @@
   "scripts": {
     "start": "node server.mjs",
     "build": "node build.mjs",
-    "test": "node --test test.mjs community-test.mjs",
-    "test:browser": "node browser-test.mjs"
+    "test": "node --test test.mjs community-test.mjs session-upload-test.mjs session-results-test.mjs",
+    "test:browser": "node browser-test.mjs",
+    "test:results-browser": "node session-results-browser-test.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0"

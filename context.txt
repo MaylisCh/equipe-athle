@@ -1,15 +1,15 @@
 CONTEXT — CAHIER DES CHARGES ET GUIDE DE REPRISE DU SITE ÉQUIPE 400/4H
 =================================================================
 Document établi le 6 octobre 2026.
+Mise à jour fonctionnelle : 16 octobre 2026 — admin + coach, Allures, Chrono Séance.
 Projet : portail privé de l’équipe d’athlétisme 400 m / 400 m haies du PUC.
 Responsable initiale : Maylis Chancerelle.
 Dépôt : https://github.com/MaylisCh/equipe-athle.git
 Branche de travail observée : main.
-Dernier commit observé : 1b5b095 — import des séances détaillées 2026–2027 ; il
-est présent sur main et origin/main. L’état du déploiement Cloudflare de ce
-commit n’est pas vérifié ici. Les modifications locales de sécurité sur les
-codes d’accès groupe/coach décrits ci-dessous ne sont pas encore commitées ni
-poussées.
+Dernier commit observé : 61334f1 — sécurité des inscriptions par codes d’accès ;
+il est présent sur main et origin/main, après 1b5b095 (import initial des
+séances détaillées 2026–2027). L’utilisatrice a confirmé que le site en ligne
+fonctionne après ces mises à jour.
 
 BUT DU DOCUMENT
 ---------------
@@ -138,7 +138,7 @@ Navigation après connexion :
 - Sur ordinateur : boutons/liens dans une barre latérale.
 - Sur mobile : bouton « Menu » ouvrant les onglets.
 - Accès aux chronos personnels également dans l’en-tête.
-- Onglets : Planning ; Mes chronos ; Compétitions ; Acronymes & circuits ;
+- Onglets : Planning ; Allures ; Chrono Séance ; Compétitions ; Acronymes & circuits ;
   Infos du groupe ; Le groupe ; Réglages.
 - Ne pas remettre le petit sous-titre « Saison hivernale 2026-2027 » dans le menu.
   Une indication de saison dans un autre emplacement n’est pas la même demande.
@@ -219,8 +219,9 @@ Toujours conserver des libellés en complément de la couleur.
 - Chaque athlète, coach et admin a ses propres chronos.
 - Les allures affichées sont calculées pour la personne connectée.
 - Les chronos d’un coach ne changent jamais ceux des athlètes.
-- Aucun endpoint actuel n’autorise la consultation/modification des chronos
-  d’un autre membre, y compris par un admin.
+- Les références d’Allures d’un autre membre ne sont ni consultables ni modifiables.
+  Les chronos de séance sont visibles à leur auteur et aux coachs, mais seul leur
+  auteur peut les modifier. Voir section 19 pour la distinction.
 - Réglages personnels : identifiant, prénom, nom, téléphone, mot de passe,
   demande ou retrait du rôle coach par une case dédiée, consultation du rôle et
   suppression de son propre profil. Devenir coach exige le code coach ; le retirer
@@ -277,12 +278,14 @@ Admin :
 - Pas d’accès aux commentaires privés d’autres membres uniquement du fait du
   rôle admin : la règle est auteur + coachs, pas auteur + coachs + admins.
 
-Les trois rôles sont actuellement exclusifs, pas des droits cumulables. La case
-personnelle de rôle coach est disponible aux profils athlète et coach ; un admin
-utilise la gestion des membres pour modifier les rôles, afin de préserver le
-dernier compte admin. Un admin peut attribuer directement le rôle coach à un
-autre membre depuis Gestion des membres ; le code coach protège les demandes
-d’auto-attribution à l’inscription et dans les réglages.
+Le rôle principal reste admin, coach ou athlète. Depuis le 16 octobre, un admin
+peut aussi activer ses fonctions coach dans Réglages, sans perdre ses droits
+admin ni mettre en danger le dernier compte administrateur. Il n’a pas besoin
+du code coach pour cette activation. La case personnelle est disponible pour
+tous ; le code coach reste requis pour un athlète qui demande ce rôle.
+L’option additionnelle admin + coach est contrôlée côté serveur et conservée
+dans admin_coach_access, sans transformer le rôle principal en coach.
+Un admin peut toujours attribuer directement le rôle coach à un autre membre.
 Nommer un coach admin remplace son rôle coach. Retirer les droits admin lui
 rend son rôle précédent, coach ou athlète.
 
@@ -407,7 +410,7 @@ prévoir une évolution explicite du modèle et de la validation, sans écraser 
 8. CHRONOS ET MODÈLE DE FATIGUE : SPÉCIFICATION EXACTE
 ===================================================
 
-L’onglet Mes chronos regroupe calculateur et références personnelles.
+L’onglet Allures (anciennement Mes chronos) regroupe calculateur et références personnelles.
 Ordre validé : calculateur d’abord, saisie des chronos ensuite.
 Distances personnelles disponibles : 50, 60, 80, 100, 125, 150, 200, 250, 300,
 400, 500, 600, 800, 1000 et 1500 mètres. Des champs peuvent rester vides.
@@ -646,7 +649,8 @@ Ne pas republier ces coordonnées ou textes privés en dehors du périmètre aut
 
   Menu latéral / menu mobile
   ├─ Planning
-  ├─ Mes chronos : calculateur puis références personnelles
+  ├─ Allures : calculateur puis références personnelles
+  ├─ Chrono Séance : saisie personnelle, frise, historique et vue coach du groupe
   ├─ Compétitions : événements et inscriptions
   ├─ Acronymes & circuits : bibliothèque
   ├─ Infos du groupe : organisation et règles
@@ -724,7 +728,7 @@ Interface :
 - community.css : commentaires, compétitions et gestion des membres.
 - puc-logo.png : logo officiel fourni, 300×300 dans l’état observé.
 - manifest.webmanifest : nom, icône, apparence et lancement de la PWA.
-- service-worker.js : cache des fichiers statiques, actuellement version v11.
+- service-worker.js : cache des fichiers statiques, actuellement version v14.
 - icon.svg : ressource historique ; le logo visuel retenu est puc-logo.png.
 
 Calculs et contenus :
@@ -939,6 +943,7 @@ Migrations :
 
 Après intervention :
 - Vérifier git diff --check et les fichiers réellement modifiés.
+- Après chaque modification de code, exécuter les tests pertinents avant de conclure ; pour les changements de parcours ou d’API, lancer npm test et npm run test:browser. Consigner les résultats réellement obtenus dans ce contexte.
 - Faire des tests proportionnés au risque.
 - Mettre à jour le README et ce contexte si les règles/fonctionnalités changent.
 - Décrire les limites restant présentes et les vérifications réellement faites.
@@ -1011,19 +1016,47 @@ Vérifications minimales à conserver :
     mise à jour concurrente signalé.
 29. Les codes ne figurent jamais dans l’état API reçu par un athlète ou un coach.
     L’API bloque elle-même l’attribution du rôle coach sans le code approprié.
+30. L’onglet d’import de planning est visible uniquement par les coachs ; l’API
+    refuse aussi les appels d’import non coach.
+31. XLSX et CSV : lecture des tableaux datés, des grilles de semaine avec jours
+    en colonnes ou en lignes, et du classeur Cycle déjà utilisé.
+32. L’aperçu liste toutes les dates détectées, les séances prévues, les jours
+    vides/repos, et les remplacements/suppressions avant confirmation explicite.
+33. Les dates antérieures et celles de la semaine du versement sont ignorées,
+    même dans un fichier mêlant passé et futur ; elles ne font pas échouer l’import.
+34. À partir du lundi suivant uniquement : séance source remplace toutes les
+    séances de la journée ; case vide ou « Repos » archive les séances du jour.
+35. Sans marqueur explicite d’échauffement, pas de contenu inventé. Utiliser les
+    colonnes/libellés/formulations identifiables et le traitement établi pour les
+    classeurs saisonniers. Les indications comme « Muscu si compétition » sont
+    conservées dans le titre et orientent le type de séance.
 
-Dernier commit local : 1b5b095, import préparé des 74 séances détaillées du
-28 septembre 2026 au 23 janvier 2027, sans cartes « Repos » ; les 10 variantes
-V2 sont séparées. Sa migration future préserve la semaine en cours, les dates
-passées et les séances éditées par un coach.
+Les commits 1b5b095 et 61334f1 sont présents dans main et origin/main. Le premier
+importe 74 séances détaillées du 28 septembre 2026 au 23 janvier 2027 sans cartes
+« Repos », sépare 10 variantes V2 et préserve les séances de la semaine du
+déploiement, les précédentes et celles modifiées par un coach. Le second ajoute
+les codes groupe/coach par défaut `NOUVEAU` et `COACH`.
 
-Modification locale en cours : codes obligatoires pour les inscriptions au groupe
-et les demandes coach, réglage personnel pour demander/retirer le rôle coach,
-codes partagés visibles et modifiables par les admins (défauts `NOUVEAU` et
-`COACH`). Les contrôles sont ajoutés côté serveur local et Pages API ; le cache
-PWA est incrémenté. `git diff --check` a été vérifié ; tests et build non lancés.
-La migration des séances et cette modification des codes ne sont pas poussées ;
-le site en ligne n’a encore reçu aucune de ces évolutions.
+Modification locale en cours : import de fichiers XLSX/CSV par un nouvel onglet
+réservé coach, détection souple des tableaux, séparation échauffement/séance,
+aperçu des changements et case de confirmation. Les dates anciennes et la
+semaine en cours sont filtrées, non bloquantes. Le serveur applique lui-même le
+seuil du lundi suivant, remplace les séances d’un jour ciblé ou archive celles
+du jour quand il est vide/repos. Le cache PWA est incrémenté pour ce changement.
+La détection couvre les listes date/séance, les grilles où les jours sont en
+colonnes et les semaines en lignes, les grilles inversées (jours en lignes,
+semaines datées en colonnes) et les onglets Cycle de l’ancien classeur. CSV
+délimités par virgule, point-virgule ou tabulation. Les dates explicitement
+datées gardent leur année ; sans année, elle est inférée près de la date courante
+et selon l’ordre du tableau. Les colonnes/libellés Échauffement, les lignes de
+mise en route reconnues (renfo, gammes, mobilité, etc.) et la mention « à
+l’échauffement » servent à remplir le champ échauffement. V2 reste séparée.
+Cellule vide et « Repos » explicitement sont des journées vides ; les mentions
+conditionnelles comme « repos ou muscu si compétition » restent une séance avec
+leur précision comme sous-titre (par ex. « Muscu » avec « Si compétition »). Les autres séances conditionnelles sont traitées de la même façon : le texte avant la condition fournit le titre libre, la condition fournit le sous-titre, et le type est estimé à partir de l’activité. Le sous-titre est visible dans la carte et éditable par le coach. Les doublons d’une date sont fusionnés en une
+seule carte. Seules les dates réellement représentées par le fichier sont
+modifiées ; les jours absents de la couverture du tableau restent intacts.
+À cette reprise : les 3 tests ciblés `session-upload-test.mjs` passent ; la suite Pages + import (`node --test community-test.mjs session-upload-test.mjs`) passe (5/5). `npm run build`, les contrôles `node --check` et `git diff --check` passent. `npm test` obtient 9 tests réussis ; les 2 tests de serveur local échouent car l’environnement sandbox refuse les sockets avec `listen/connect EPERM` sur 127.0.0.1. `npm run test:browser` est bloqué pour la même raison. Les tests Pages ont été actualisés : ils tolèrent l’initialisation légitime des séances seedées et transmettent maintenant le code de groupe requis. Les changements restent locaux, non poussés.
 
 
 18. LIMITES ACTUELLES ET ÉVOLUTIONS NON RÉALISÉES
@@ -1036,9 +1069,9 @@ Ne pas confondre exigences, existant et pistes possibles :
 - Périodes/charges : édition bornée à S105 ; mois et compétitions plus extensibles.
 - Modèle de fatigue : approximation d’aide ; pas une garantie physiologique et
   pas un entraînement statistique sur des chronos appariés du classeur.
-- Rôles : exclusifs, pas de combinaison admin+coach actuelle.
+- Rôle principal unique, mais fonctions coach activables en complément par un admin.
 - Inscription : code de groupe requis ; code coach exigé pour demander ce rôle.
-- Les rôles restent exclusifs ; un admin n’est pas automatiquement coach.
+- Un admin n’est pas automatiquement coach : il active lui-même cette option.
 - Codes de départ : `NOUVEAU` et `COACH`. Ils doivent être changés par les admins
   dans Réglages dès qu’ils souhaitent remplacer les valeurs communes.
 - Synchronisation : interrogations périodiques, pas diffusion instantanée.
@@ -1054,5 +1087,130 @@ Ne pas confondre exigences, existant et pistes possibles :
 Toute nouvelle évolution doit respecter le socle ci-dessus et être distinguée
 de ce qui est déjà livré. Si elle nécessite un choix structurant, demander à
 l’utilisatrice plutôt qu’en déduire une autorisation implicite.
+
+19. ÉVOLUTION VALIDÉE DU 16 OCTOBRE 2026 : CHRONO SÉANCE ET ADMIN + COACH
+======================================================================
+
+Cette section complète et, en cas de formulation ancienne contradictoire,
+précise les sections précédentes. Ne pas confondre chronos de référence privés
+et chronos réalisés lors des séances, désormais consultables par les coachs.
+
+19.1 Admin et fonctions coach cumulables
+- Dans Réglages → Rôle dans le groupe, la case « Je suis coach » est également
+  proposée aux admins. Activation/désactivation sans code coach supplémentaire.
+- Le rôle principal reste admin. Les droits de gestion des comptes sont conservés.
+- Le dernier admin peut activer l’option sans créer un autre administrateur.
+- coachEnabled dans la réponse utilisateur indique l’option additionnelle.
+- canCoach vérifie role=coach OU (role=admin ET coachEnabled).
+- Les contrôles des deux serveurs utilisent cette règle pour séances, périodes,
+  bibliothèque, infos, imports, notes coach, commentaires privés et résultats.
+- Sans option, un admin ne reçoit pas les chronos de séance des autres membres
+  et ne peut pas éditer les contenus réservés aux coachs.
+- Les commentaires privés deviennent visibles à un admin avec fonctions coach,
+  car il exerce alors les droits coach ; ils restent privés aux admins non-coachs.
+- Athlète/coach : le mécanisme existant avec code coach est conservé.
+- La désactivation ne supprime aucune donnée personnelle ni aucun résultat.
+
+19.2 Allures
+- Nom visible du menu et du raccourci d’en-tête : Allures.
+- Ancienne URL interne #chronos conservée pour ne pas casser les liens.
+- Le calculateur et les références personnelles restent inchangés.
+- Une saisie dans Chrono Séance ne met pas à jour automatiquement les références.
+- Les coachs ne reçoivent toujours pas les références d’Allures des autres comptes.
+
+19.3 Saisie et correction de résultats
+- Nouvel onglet Chrono Séance, URL interne #chrono-seance.
+- Formulaire personnel pour tous les comptes, y compris coachs et admins.
+- Date libre passée/présente/future, sélection d’une séance du jour.
+- Si plusieurs séances : choix explicite dans une liste avec titre et créneau.
+- Pas d’enregistrement sur un jour vide ou sur une simple carte Repos.
+- Saisie libre numérique : 25,4 - 25.8 / 26 ; 1:02,5.
+- Point et virgule = séparateur décimal. Tiret, point-virgule, slash, espace ou
+  saut de ligne = séparateurs entre répétitions. Les minutes sont aussi acceptées.
+- Une seule décimale structurée par nombre ; les textes et chiffres ambigus sont
+  refusés avec erreur. Temps strictement positifs, jusqu’à 24 heures par valeur.
+- Limites : 1 à 200 chronos, 4000 caractères ; jusqu’à trois chiffres décimaux.
+- Aperçu numéroté avant enregistrement. Texte original et valeurs en secondes stockés.
+- Une saisie par membre ET séance ; les nouveaux enregistrements ne créent pas
+  de doublons pour la même paire, les modifications vérifient la version.
+- Édition via le formulaire du haut ou « Modifier mes chronos » dans l’historique.
+- Possibilité de supprimer uniquement ses propres chronos de cette séance.
+- Une erreur/conflit ne doit pas être traitée comme un enregistrement réussi.
+
+19.4 Frise et consultation
+- Frise hebdomadaire : jour, date, nombre de séances et nombre de retours visibles.
+- Défilement horizontal local sur téléphone, navigation semaine précédente/suivante.
+- Accès rapide au jour renseigné précédent/suivant et à aujourd’hui.
+- Le détail du jour affiche la ou les séances, leurs échauffements/contenus/V2,
+  et les résultats associés. Le contenu détaillé peut être déplié.
+- Tableau récapitulatif de toutes les séances renseignées avec boutons Voir.
+- Lien depuis la séance du planning vers son carnet et lien inverse vers le planning.
+- Calendrier mensuel et carnet partagent la date sélectionnée et restent cohérents.
+- Une actualisation manuelle permet aux coachs de récupérer les nouvelles saisies.
+  Les actualisations périodiques ne doivent pas écraser un formulaire en cours.
+
+19.5 Confidentialité et propriété
+- Athlète ou admin non-coach : ses résultats seulement, pas ceux des autres.
+- Coach ou admin + coach : résultats de tous les membres qui les ont renseignés,
+  y compris les autres coachs et lui-même ; pas les références personnelles.
+- Le filtrage est fait en SQL/API avant transmission au navigateur.
+- Le formulaire du haut reste toujours personnel, même dans la vue coach.
+- Aucun coach/admin ne peut modifier un résultat au nom d’un autre membre.
+- L’id utilisateur provient de la session serveur, pas du corps de la requête.
+- Les chronos restent liés à l’id de séance : un déplacement change la date de
+  leur affichage sans perdre les saisies. Deux séances le même jour sont distinctes.
+- Après archivage d’une séance, les résultats existants restent consultables et
+  corrigeables ; une nouvelle saisie pour une séance déjà archivée est refusée.
+- Une suppression de compte nettoie ses résultats, jamais le contenu partagé.
+- Il n’y a aucune purge automatique des résultats ou des anciennes séances.
+
+19.6 Architecture et nouveaux fichiers
+
+  Planning -- choix d’une séance --> Chrono Séance
+     ^                                |
+     |                                +--> Saisie personnelle
+     +---- voir au planning ----------+--> Frise semaine / historique
+                                      |
+                                      v
+                           PUT/DELETE /api/sessions/:id/times
+                                      |
+                           Contrôle session + propriétaire + version
+                                      |
+                                  session_results
+                                      |
+                           GET /api/state : sessionResults
+                             /                       \
+                 ses résultats seulement      tous les résultats
+                 athlète/admin non-coach       coach/admin + coach
+
+- session-results-core.mjs : parseSessionTimes, validation partagée client/serveur.
+- session-results.mjs : canCoach, schéma complémentaire, lecture filtrée et actions.
+- session-results-test.mjs : tests parseur et véritable handler Pages.
+- session-results-browser-test.mjs : test navigateur dédié, comptes temporaires.
+- npm run test:results-browser : exécution du nouveau parcours Chromium.
+- community.mjs : initialisation additive, état/actions communs et nettoyage compte.
+- app.js / index.html / community.css : nouvel onglet, frise, formulaires et rôles.
+- API locale et Pages : exposition de coachEnabled, mêmes autorisations.
+- build.mjs / serveur statique : incluent les nouveaux modules client ainsi que
+  session-upload.mjs déjà requis par l’import de planning existant.
+- service-worker.js : cache statique version v14, aucune mise en cache de l’API.
+
+Nouvelles tables, créées sans remplacer users ou records :
+  admin_coach_access(user_id PRIMARY KEY, enabled)
+  session_results(session_id, user_id, raw_text, times_json, version, updated)
+  Clé primaire des résultats : (session_id, user_id).
+
+19.7 Vérifications et état de livraison locale
+- npm test : 13 tests réussis, dont les nouveaux tests de résultats et de droits.
+- npm run test:browser : parcours historiques réussis.
+- npm run test:results-browser : nouveau parcours réussi, dont mobile.
+- Les tests utilisent des bases temporaires ; aucun compte en ligne modifié.
+- Le nouveau parcours vérifie aussi le maintien des droits admin après activation
+  coach, la désactivation, l’accès de groupe, les corrections personnelles et
+  les liens entre planning et carnet.
+- Build local réussi ; les modifications restent locales à publier, sans annonce
+  de déploiement effectif sur Cloudflare.
+- Les changements locaux préexistants (codes d’accès, import de planning) ont
+  été conservés ; ne pas les supprimer lors de la préparation d’un futur commit.
 
 FIN DU CONTEXTE

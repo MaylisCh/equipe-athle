@@ -1,7 +1,7 @@
 import seed from '../../seed.json';
 import { library, info } from '../../content.mjs';
 import { defaultSeason, normalizeSeason } from '../../season.mjs';
-import { initializeCommunity, passwordHash, passwordMatches, validateRegistrationCodes, credentialInsert, communityState, communityAction, removeMemberCommunity, syncSessionCompetition } from '../../community.mjs';
+import { canCoach, initializeCommunity, passwordHash, passwordMatches, validateRegistrationCodes, credentialInsert, communityState, communityAction, removeMemberCommunity, syncSessionCompetition } from '../../community.mjs';
 import { detailedImportMarker, legacyRestDates, nextWeekStartParis } from '../../session-import.mjs';
 
 const schema = `
@@ -19,7 +19,7 @@ const str = (value,label,max=20000,required=false) => {
  if(typeof value!=='string'||value.length>max||(required&&!value.trim()))error(`${label} invalide.`);
  return value.trim();
 };
-const publicUser = user => ({id:user.id,email:user.email,name:user.name,lastName:user.last_name||'',phone:user.phone||'',role:user.role,accountVersion:user.account_version||1});
+const publicUser = user => ({id:user.id,email:user.email,name:user.name,lastName:user.last_name||'',phone:user.phone||'',role:user.role,coachEnabled:!!user.coachEnabled,accountVersion:user.account_version||1});
 const stmt = (db,sql,...values) => db.prepare(sql).bind(...values);
 let initialization;
 async function migrateDetailedSessions(db) {
@@ -79,7 +79,7 @@ function recordData(collection,body) {
   Object.assign(item,{date:validateDate(body.date),type:body.type,slot:body.slot||'non-precise'});
   if(!['auto','none','light','medium','high'].includes(body.load||'auto'))error('Charge de séance invalide.');
   item.load=body.load||'auto';
-  for(const key of ['warmup','workout','v2','coachNote','cycle'])item[key]=str(body[key]??'',key);
+  for(const key of ['subtitle','warmup','workout','v2','coachNote','cycle'])item[key]=str(body[key]??'',key);
   if(!Array.isArray(body.targets)||body.targets.length>20)error('Allures invalides.');
   item.targets=body.targets.map(t=>{
    if(!Number.isInteger(t.distance)||t.distance<=0||t.distance>10000)error('Distance cible invalide.');
@@ -109,7 +109,7 @@ async function getRecord(db,collection,id) {
 async function userFromRequest(db,request) {
  const bearer=request.headers.get('Authorization');
  if(!bearer?.startsWith('Bearer '))return null;
- return stmt(db,'SELECT auth.token,users.* FROM auth JOIN users ON users.id=auth.user_id WHERE auth.token=? AND auth.expires>?',await digest(bearer.slice(7)),Date.now()).first();
+ return stmt(db,'SELECT auth.token,users.*,(SELECT enabled FROM admin_coach_access WHERE user_id=users.id) AS coachEnabled FROM auth JOIN users ON users.id=auth.user_id WHERE auth.token=? AND auth.expires>?',await digest(bearer.slice(7)),Date.now()).first();
 }
 async function session(db,user) {
  const token=[...crypto.getRandomValues(new Uint8Array(32))].map(x=>x.toString(16).padStart(2,'0')).join('');
@@ -162,11 +162,11 @@ async function handle(request,db) {
  if(method==='GET'&&path==='/api/state'){
   const [meta,members,rows]=await Promise.all([
    db.prepare("SELECT value FROM meta WHERE key='revision'").first(),
-   db.prepare(`SELECT id,name,last_name AS lastName,phone,role,(SELECT created FROM account_created WHERE user_id=users.id) AS createdAt ${ctx.role==='admin'?',email,account_version AS accountVersion':''} FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE`).all(),
+   db.prepare(`SELECT id,name,last_name AS lastName,phone,role,(SELECT enabled FROM admin_coach_access WHERE user_id=users.id) AS coachEnabled,(SELECT created FROM account_created WHERE user_id=users.id) AS createdAt ${ctx.role==='admin'?',email,account_version AS accountVersion':''} FROM users ORDER BY name COLLATE NOCASE,last_name COLLATE NOCASE`).all(),
    db.prepare('SELECT * FROM records WHERE archived=0 ORDER BY rowid').all()
   ]);
   const result={revision:meta.value,user:publicUser(ctx),members:members.results,profile:JSON.parse(ctx.profile),profileVersion:ctx.profile_version,sessions:[],library:[],info:[],competitions:[],season:null,...await communityState(db,ctx)};
-  for(const row of rows.results){const item={...JSON.parse(row.data),version:row.version};if(row.collection==='season'){result.season=item;continue;}if(ctx.role!=='coach'){delete item.coachNote;delete item.sourceText;}result[row.collection].push(item);}
+  for(const row of rows.results){const item={...JSON.parse(row.data),version:row.version};if(row.collection==='season'){result.season=item;continue;}if(!canCoach(ctx)){delete item.coachNote;delete item.sourceText;}result[row.collection].push(item);}
   return json(result);
  }
  if(method==='PUT'&&path==='/api/profile'){
@@ -210,7 +210,7 @@ async function handle(request,db) {
  }
  const community=await communityAction(db,ctx,path,method,body);
  if(community)return json(community,method==='POST'?201:200);
- if(ctx.role!=='coach')error('Cette action est réservée au coach.',403);
+ if(!canCoach(ctx))error('Cette action est réservée au coach.',403);
  if(method==='PUT'&&path==='/api/season'){
   let data;try{data=normalizeSeason(body);}catch(e){error(e.message);}
   const old=await getRecord(db,'season','2026-2027');versionCheck(old.version,body.version);
@@ -218,6 +218,31 @@ async function handle(request,db) {
   if(!updated.meta.changes)error('Les repères de saison ont été modifiés ailleurs. Rechargez la page.',409);
   await db.prepare("UPDATE meta SET value=value+1 WHERE key='revision'").run();
   return json({...data,version:old.version+1});
+ }
+ if(method==='POST'&&path==='/api/sessions/import'){
+  if(!canCoach(ctx))error('Cette action est réservée au coach.',403);
+  if(body.confirm!==true||!Array.isArray(body.days)||!body.days.length||body.days.length>500||!Number.isInteger(body.revision))error('Confirmation ou journées importées invalides.');
+  const currentRevision=(await db.prepare("SELECT value FROM meta WHERE key='revision'").first())?.value;
+  if(currentRevision!==body.revision)error('Le planning a changé depuis l’aperçu. Rechargez la page et vérifiez à nouveau les changements.',409);
+  const cutoff=nextWeekStartParis(),unique=new Set(),days=[];
+  for(const source of body.days){
+   if(!source||typeof source!=='object')error('Journée importée invalide.');
+   const date=validateDate(source.date);
+   if(unique.has(date))error('Le fichier contient plusieurs lignes pour une même date.');unique.add(date);if(date<cutoff)continue;
+   if(source.rest===true){days.push({date,rest:true});continue;}
+   const id=crypto.randomUUID(),data={...recordData('sessions',{title:source.title,subtitle:source.subtitle||'',type:source.type,date,slot:'non-precise',load:'auto',warmup:source.warmup||'',workout:source.workout||'',v2:source.v2||'',coachNote:'',cycle:source.source||'',targets:[]}),id,version:1};
+   days.push({date,rest:false,id,data:JSON.stringify(data)});
+  }
+  if(!days.length)error('Aucune journée importable à partir de la semaine prochaine.');
+  const dates=days.map(day=>day.date),newSessions=days.filter(day=>!day.rest);
+  const latest=(await db.prepare("SELECT value FROM meta WHERE key='revision'").first())?.value;if(latest!==body.revision)error('Le planning a changé depuis l’aperçu. Rechargez la page et vérifiez à nouveau les changements.',409);
+  const results=await db.batch([
+   stmt(db,"UPDATE records SET archived=1,version=version+1 WHERE collection='sessions' AND archived=0 AND json_extract(data,'$.date') IN (SELECT value FROM json_each(?)) AND EXISTS (SELECT 1 FROM meta WHERE key='revision' AND value=?)",JSON.stringify(dates),body.revision),
+   stmt(db,"INSERT INTO records(collection,id,data,version,archived) SELECT 'sessions',json_extract(value,'$.id'),json_extract(value,'$.data'),1,0 FROM json_each(?) WHERE EXISTS (SELECT 1 FROM meta WHERE key='revision' AND value=?)",JSON.stringify(newSessions),body.revision),
+   stmt(db,"UPDATE meta SET value=value+1 WHERE key='revision' AND value=?",body.revision)
+  ]);
+  if(!results[2].meta.changes)error('Le planning a changé depuis l’aperçu. Rechargez la page et vérifiez à nouveau les changements.',409);
+  return json({ok:true,appliedDates:days.length,sessions:newSessions.length,rests:days.length-newSessions.length,cutoff});
  }
  const match=path.match(/^\/api\/(sessions|library|info)(?:\/([^/]+))?$/);
  if(!match)error('Route introuvable.',404);
