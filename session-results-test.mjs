@@ -3,11 +3,17 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {sqliteD1} from './sqlite-d1.mjs';
-import {parseSessionTimes} from './session-results-core.mjs';
+import {parseSessionTimes,normalizeSessionDistances} from './session-results-core.mjs';
 
 test('Chronos séance : décimales, séparateurs, minutes et saisies invalides',()=>{
  assert.deepEqual(parseSessionTimes('25,4 - 25.8 / 26 / 1:02,5 - 27'),[25.4,25.8,26,62.5,27]);
  for(const value of ['', 'abc','1,2.3','0','1:70','1e3','<script>','; / -', '25;26','25 26','25\n26','1 / '.repeat(201)])assert.throws(()=>parseSessionTimes(value));
+});
+
+test('Distances facultatives : une valeur par répétition, contrôles et champs vides',()=>{
+ assert.deepEqual(normalizeSessionDistances([200,null,150.5],3),[200,null,150.5]);
+ assert.deepEqual(normalizeSessionDistances([null,null],2),[null,null]);
+ for(const values of [[200],[0,null],[-200,null],['200',null],[Infinity,null],[100001,null],undefined])assert.throws(()=>normalizeSessionDistances(values,2));
 });
 
 test('Pages : admin + coach, confidentialité des résultats, modifications, déplacements et migrations',async t=>{
@@ -29,6 +35,7 @@ test('Pages : admin + coach, confidentialité des résultats, modifications, dé
  assert.equal((await request(path,'PUT',{rawText:'25,4 / 26',version:0,userId:bob.user.id},alice)).status,200);
  native.prepare('UPDATE session_results SET raw_text=? WHERE session_id=? AND user_id=?').run('25,4 ; 26',s1.id,alice.user.id);
  assert.deepEqual((await state(alice)).sessionResults[0].times,[25.4,26],'Older separator formats stay readable without migrating stored data');
+ assert.deepEqual((await state(alice)).sessionResults[0].distances,[null,null]);
  assert.equal((await request(path,'PUT',{rawText:'27 - 28',version:0},bob)).status,200);
  assert.equal((await request('/sessions/'+s2.id+'/times','PUT',{rawText:'30',version:0},alice)).status,200);
  assert.equal((await state(alice)).sessionResults.length,2);assert.ok((await state(alice)).sessionResults.every(r=>r.userId===alice.user.id));
@@ -37,9 +44,15 @@ test('Pages : admin + coach, confidentialité des résultats, modifications, dé
  assert.equal((await request('/sessions/'+s1.id+'/comment','PUT',{rating:3,body:'Privé coach',isPrivate:true,version:0},alice)).status,200);
  assert.equal((await state(owner)).comments.some(c=>c.body==='Privé coach'),false);
  assert.equal((await request(path,'PUT',{rawText:'29',version:1,userId:alice.user.id},coach)).status,409,'Coach cannot write to another member’s existing record');
- assert.equal((await request(path,'PUT',{rawText:'25,8 / 26.2',version:1},alice)).status,200);
+ assert.equal((await request(path,'PUT',{rawText:'25,8 / 26.2',distances:[200],version:1},alice)).status,400);
+ assert.equal((await request(path,'PUT',{rawText:'25,8 / 26.2',distances:[0,null],version:1},alice)).status,400);
+ assert.equal((await request(path,'PUT',{rawText:'25,8 / 26.2',distances:[200,null],version:1},alice)).status,200);
  assert.equal((await request(path,'PUT',{rawText:'99',version:1},alice)).status,409);
  assert.deepEqual((await state(alice)).sessionResults.find(r=>r.sessionId===s1.id).times,[25.8,26.2]);
+ assert.deepEqual((await state(alice)).sessionResults.find(r=>r.sessionId===s1.id).distances,[200,null]);
+ assert.deepEqual((await state(coach)).sessionResults.find(r=>r.sessionId===s1.id&&r.userId===alice.user.id).distances,[200,null]);
+ const {initializeCommunity}=await import('./community.mjs');await initializeCommunity(DB);
+ assert.deepEqual((await state(alice)).sessionResults.find(r=>r.sessionId===s1.id).distances,[200,null],'Reinitialization preserves distances');
  assert.equal((await request('/account/coach','PUT',{coach:true,version:1},owner)).status,200);
  let adminState=await state(owner);assert.equal(adminState.user.role,'admin');assert.equal(adminState.user.coachEnabled,true);assert.equal(adminState.sessionResults.length,3);assert.ok(adminState.accessCodes);
  assert.equal(adminState.comments.some(c=>c.body==='Privé coach'),true,'Admin with coach powers can read coach-private feedback');
@@ -51,7 +64,9 @@ test('Pages : admin + coach, confidentialité des résultats, modifications, dé
  assert.equal((await state(alice)).sessionResults.find(r=>r.sessionId===s1.id).session.date,'2026-10-20');
  assert.equal((await request('/sessions/'+s1.id,'DELETE',{version:2},coach)).status,200);
  assert.equal((await state(alice)).sessionResults.find(r=>r.sessionId===s1.id).session.archived,true);
- assert.equal((await request(path,'PUT',{rawText:'26',version:2},alice)).status,200,'Existing archived results remain editable');
+ assert.equal((await request(path,'PUT',{rawText:'26',version:2},alice)).status,409,'An outdated client cannot silently discard distances when changing repetition count');
+ assert.equal((await request(path,'PUT',{rawText:'26',distances:[250],version:2},alice)).status,200,'Existing archived results remain editable');
+ assert.deepEqual((await state(alice)).sessionResults.find(r=>r.sessionId===s1.id).distances,[250]);
  assert.equal((await request('/account/coach','PUT',{coach:false,version:2},owner)).status,200);
  adminState=await state(owner);assert.equal(adminState.user.role,'admin');assert.equal(adminState.user.coachEnabled,false);assert.equal(adminState.sessionResults.length,1);
  assert.equal(adminState.comments.some(c=>c.body==='Privé coach'),false);
@@ -59,11 +74,13 @@ test('Pages : admin + coach, confidentialité des résultats, modifications, dé
  assert.equal((await request('/account/coach','PUT',{coach:true,version:3},alice)).status,409);
  assert.equal((await request('/account/coach','PUT',{coach:true,version:1},bob)).status,400);
  assert.equal((await request(path,'DELETE',{version:3,userId:bob.user.id},alice)).status,200);
+ assert.equal(native.prepare('SELECT COUNT(*) AS n FROM session_result_distances WHERE session_id=? AND user_id=?').get(s1.id,alice.user.id).n,0);
  assert.equal((await state(bob)).sessionResults.length,1);
  assert.equal((await request('/account','DELETE',{identifier:'Bob',confirm:true},bob)).status,200);
  assert.equal(native.prepare('SELECT COUNT(*) AS n FROM session_results WHERE user_id=?').get(bob.user.id).n,0);
+ assert.equal(native.prepare('SELECT COUNT(*) AS n FROM session_result_distances WHERE user_id=?').get(bob.user.id).n,0);
  assert.equal((await state(coach)).sessionResults.some(r=>r.userId===bob.user.id),false);
- const {initializeCommunity}=await import('./community.mjs');await initializeCommunity(DB);
+ await initializeCommunity(DB);
  assert.equal((await state(alice)).sessionResults.length,1,'Migration preserves personal results');
  assert.deepEqual((await state(owner)).profile.times,{200:24});
 });

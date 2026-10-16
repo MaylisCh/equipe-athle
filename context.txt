@@ -6,9 +6,10 @@ Projet : portail privé de l’équipe d’athlétisme 400 m / 400 m haies du PU
 Responsable initiale : Maylis Chancerelle.
 Dépôt : https://github.com/MaylisCh/equipe-athle.git
 Branche de travail observée : main.
-Dernier commit observé : 8c083e4 — Chrono Séance, Allures et fonctions admin-coach,
-présent sur main et origin/main. Les ajustements visuels décrits en section 20
-sont des modifications locales supplémentaires, pas une confirmation de déploiement.
+Dernier commit observé : 5214391 — frise simplifiée et saisie au clic,
+après 8c083e4 (Chrono Séance, Allures et fonctions admin-coach).
+Les évolutions de la section 22 sont des changements supplémentaires, vérifiés
+localement ; leur commit ne constitue pas une confirmation de déploiement.
 Historique : 61334f1 (codes d’accès) après 1b5b095 (import initial détaillé).
 
 BUT DU DOCUMENT
@@ -728,7 +729,7 @@ Interface :
 - community.css : commentaires, compétitions et gestion des membres.
 - puc-logo.png : logo officiel fourni, 300×300 dans l’état observé.
 - manifest.webmanifest : nom, icône, apparence et lancement de la PWA.
-- service-worker.js : cache des fichiers statiques, actuellement version v15.
+- service-worker.js : cache des fichiers statiques, actuellement version v16.
 - icon.svg : ressource historique ; le logo visuel retenu est puc-logo.png.
 
 Calculs et contenus :
@@ -1290,5 +1291,91 @@ Ne pas effectuer le push ni déployer sans demande explicite. Ne sélectionner
 que les fichiers concernés ; exclure les dossiers locaux sans rapport, les
 bases, les secrets et les documents source. Préserver les changements étrangers
 à la tâche. Indiquer le hash du commit et sa branche dans le compte rendu.
+
+22. DISTANCES PAR CHRONO, RETOUR À AUJOURD’HUI ET SÉANCE VISIBLE
+============================================================
+
+Cette section précise le comportement actuel et remplace les descriptions plus
+anciennes des volets de séance et de la flèche circulaire du carnet.
+
+22.1 Distance facultative par répétition
+- L’athlète peut associer une distance en mètres à chaque chrono saisi.
+- Une même séance peut contenir des distances différentes et des chronos sans
+  distance ; aucun champ de distance n’est obligatoire.
+- Conserver la saisie rapide 25.8 / 48.2 / 24.4 / 25. La section repliable
+  Distances (facultatif) affiche une ligne par répétition avec son chrono et
+  une case de distance. La séance elle-même n’est plus dans un volet repliable.
+- Le champ Même distance pour toutes (m) et le bouton Appliquer permettent de
+  renseigner toutes les lignes en une fois, puis de corriger certaines lignes.
+- Une distance est un nombre strictement positif, au plus égal à 100 000 m.
+  Les distances décimales sont acceptées ; une case vide devient null.
+- Chronos et distances sont associés dans l’ordre des répétitions, pas déduits
+  automatiquement du texte de la séance. Lors d’une modification du nombre ou
+  de l’ordre des chronos, vérifier que chaque distance correspond encore au bon.
+- Le récapitulatif affiche un couple compact par répétition : 200 m · 25,80 s.
+  Sans distance, afficher uniquement le chrono avec son repère de répétition,
+  sans mention répétée « distance non renseignée ».
+- Même rendu dans l’aperçu, l’historique personnel et les tableaux du coach.
+- Les distances sont réaffichées et modifiables lors des corrections ; elles
+  suivent la séance déplacée ou archivée comme les chronos correspondants.
+- Aucun effet sur les consignes de séance ou les références dans Allures.
+
+22.2 Données et compatibilité
+- Nouvelle table additive, créée automatiquement sans remplacer les tables
+  existantes : session_result_distances(session_id, user_id, distances_json),
+  clé primaire (session_id, user_id).
+- GET /api/state inclut désormais distances dans chaque objet sessionResults.
+  C’est un tableau de nombres ou null aligné sur times, de même longueur.
+- Ancien résultat sans ligne de distances : fournir des valeurs nulles, sans
+  réécrire ni supprimer son texte, ses chronos ou sa version existante.
+- PUT /api/sessions/:id/times accepte distances, en plus de rawText et version.
+- Le serveur vérifie le type, le nombre et les bornes des distances.
+- Si un ancien client omet distances, conserver les distances déjà connues si
+  le nombre de chronos ne change pas. Si ce nombre change alors que des distances
+  existent, demander un rechargement plutôt que les effacer silencieusement.
+- L’enregistrement/suppression du résultat et de ses distances est transactionnel,
+  avec la même protection contre les conflits de version.
+- Une suppression de son résultat ou du compte (personnelle ou admin) nettoie
+  également les distances correspondantes.
+- Les filtres de visibilité et l’identité de session restent appliqués côté
+  serveur : athlète/admin non-coach = soi ; coach/admin + coach = vue groupe,
+  mais seul l’auteur peut modifier ses propres couples distance/chrono.
+
+22.3 Flèche circulaire et actualisation
+- Dans Chrono Séance, la flèche circulaire ↻ à côté de la date ramène toujours
+  à la date du jour et à sa semaine, même après une navigation lointaine.
+- Cette navigation ne dépend pas d’une requête réseau réussie.
+- Libellé accessible : Revenir à aujourd’hui ; identifiant times-return-today.
+- Actualiser est un bouton distinct dans l’en-tête ; il récupère l’état du
+  groupe sans remplacer la date sélectionnée par aujourd’hui.
+
+22.4 Séance affichée directement, sans échauffement dans le carnet
+- Dans la fenêtre de saisie ET le détail sous la frise, le contenu de la séance
+  et la V2 éventuelle sont visibles immédiatement. Pas de flèche/summary pour
+  déplier la séance.
+- Ne pas afficher l’échauffement dans cet onglet : il reste conservé en base
+  et affiché normalement dans le planning.
+- Le lien Voir au planning est visible directement, dans la fenêtre de saisie
+  et le détail de séance. Pour une séance archivée, ne pas inventer un lien vers
+  une séance qui n’est plus visible dans le planning actif.
+- L’historique complet et la section facultative de distances peuvent rester
+  repliables ; la demande de suppression du volet concerne la séance elle-même.
+
+22.5 Fichiers, validations et publication
+- session-results-core.mjs : validation partagée des distances.
+- session-results.mjs : nouvelle table, réponse enrichie et écritures atomiques.
+- community.mjs / server.mjs : nettoyage des distances à la suppression du compte.
+- app.js / community.css : saisie facultative, couples compacts, flèche aujourd’hui,
+  bouton Actualiser distinct et séance visible sans échauffement.
+- Tests de parseur/API/navigateur actualisés ; cache statique v16.
+- npm test : 14 tests réussis, dont distances vides/invalides, confidentialité,
+  migration sans perte, correction d’une séance archivée et nettoyage des distances.
+- npm run test:results-browser : distances différentes/facultatives, application
+  commune puis correction, persistance à la réouverture, retour à aujourd’hui,
+  séance/lien immédiatement visibles et échauffement préservé au planning.
+- npm run build et contrôle du diff local vérifiés.
+- Aucun compte ni document Word/Excel de production modifié pendant les tests.
+- Préparer automatiquement le commit local après vérification ; laisser le
+  push GitHub Desktop et le déclenchement du déploiement à l’utilisatrice.
 
 FIN DU CONTEXTE

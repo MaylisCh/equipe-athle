@@ -1,4 +1,12 @@
 // Decimal comma/dot, repetitions separated by a dash or slash.
+export function normalizeSessionDistances(value,count) {
+ if(!Array.isArray(value)||value.length!==count)throw new Error('Les distances doivent correspondre aux chronos, dans le même ordre.');
+ return value.map(distance=>{
+  if(distance===null)return null;
+  if(typeof distance!=='number'||!Number.isFinite(distance)||distance<=0||distance>100000)throw new Error('Chaque distance doit être supérieure à 0 et au plus égale à 100 000 mètres, ou laissée vide.');
+  return distance;
+ });
+}
 export function parseSessionTimes(value) {
  if(typeof value!=='string'||!value.trim()||value.length>4000)throw new Error('Saisissez au moins un chrono (4000 caractères maximum).');
  const tokens=value.trim().split(/[\/\-–—]+/).map(token=>token.trim()).filter(Boolean);
