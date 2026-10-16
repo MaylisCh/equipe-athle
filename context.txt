@@ -6,10 +6,10 @@ Projet : portail privé de l’équipe d’athlétisme 400 m / 400 m haies du PU
 Responsable initiale : Maylis Chancerelle.
 Dépôt : https://github.com/MaylisCh/equipe-athle.git
 Branche de travail observée : main.
-Dernier commit observé : 61334f1 — sécurité des inscriptions par codes d’accès ;
-il est présent sur main et origin/main, après 1b5b095 (import initial des
-séances détaillées 2026–2027). L’utilisatrice a confirmé que le site en ligne
-fonctionne après ces mises à jour.
+Dernier commit observé : 8c083e4 — Chrono Séance, Allures et fonctions admin-coach,
+présent sur main et origin/main. Les ajustements visuels décrits en section 20
+sont des modifications locales supplémentaires, pas une confirmation de déploiement.
+Historique : 61334f1 (codes d’accès) après 1b5b095 (import initial détaillé).
 
 BUT DU DOCUMENT
 ---------------
@@ -728,7 +728,7 @@ Interface :
 - community.css : commentaires, compétitions et gestion des membres.
 - puc-logo.png : logo officiel fourni, 300×300 dans l’état observé.
 - manifest.webmanifest : nom, icône, apparence et lancement de la PWA.
-- service-worker.js : cache des fichiers statiques, actuellement version v14.
+- service-worker.js : cache des fichiers statiques, actuellement version v15.
 - icon.svg : ressource historique ; le logo visuel retenu est puc-logo.png.
 
 Calculs et contenus :
@@ -1120,30 +1120,34 @@ et chronos réalisés lors des séances, désormais consultables par les coachs.
 
 19.3 Saisie et correction de résultats
 - Nouvel onglet Chrono Séance, URL interne #chrono-seance.
-- Formulaire personnel pour tous les comptes, y compris coachs et admins.
+- Fenêtre de saisie personnelle pour tous les comptes, ouverte en cliquant sur
+  une séance de la frise. Le formulaire séparé en haut de page a été supprimé.
 - Date libre passée/présente/future, sélection d’une séance du jour.
-- Si plusieurs séances : choix explicite dans une liste avec titre et créneau.
+- Si plusieurs séances : cartes distinctes dans la colonne du jour, avec titre
+  et créneau seulement s’il est renseigné.
 - Pas d’enregistrement sur un jour vide ou sur une simple carte Repos.
-- Saisie libre numérique : 25,4 - 25.8 / 26 ; 1:02,5.
-- Point et virgule = séparateur décimal. Tiret, point-virgule, slash, espace ou
-  saut de ligne = séparateurs entre répétitions. Les minutes sont aussi acceptées.
+- Exemple affiché : 25.8 / 48.2 / 24.4 / 25, sans longue notice de séparateurs.
+- Point ou virgule = séparateur décimal ; tiret ou slash = séparateur entre
+  répétitions. Les minutes sont aussi acceptées. Point-virgule, espace seul ou
+  saut de ligne seul ne séparent plus les nouvelles saisies.
 - Une seule décimale structurée par nombre ; les textes et chiffres ambigus sont
   refusés avec erreur. Temps strictement positifs, jusqu’à 24 heures par valeur.
 - Limites : 1 à 200 chronos, 4000 caractères ; jusqu’à trois chiffres décimaux.
 - Aperçu numéroté avant enregistrement. Texte original et valeurs en secondes stockés.
 - Une saisie par membre ET séance ; les nouveaux enregistrements ne créent pas
   de doublons pour la même paire, les modifications vérifient la version.
-- Édition via le formulaire du haut ou « Modifier mes chronos » dans l’historique.
+- Édition en cliquant la carte de séance ou le bouton « Modifier mes chronos ».
 - Possibilité de supprimer uniquement ses propres chronos de cette séance.
 - Une erreur/conflit ne doit pas être traitée comme un enregistrement réussi.
 
 19.4 Frise et consultation
-- Frise hebdomadaire : jour, date, nombre de séances et nombre de retours visibles.
-- Défilement horizontal local sur téléphone, navigation semaine précédente/suivante.
+- Frise hebdomadaire : colonnes jour/date, cartes colorées par type de séance,
+  titres et indicateurs compacts de résultats, sans compteurs à zéro répétés.
+- Défilement horizontal local sur téléphone ; navigation semaine, mois ou date.
 - Accès rapide au jour renseigné précédent/suivant et à aujourd’hui.
-- Le détail du jour affiche la ou les séances, leurs échauffements/contenus/V2,
-  et les résultats associés. Le contenu détaillé peut être déplié.
-- Tableau récapitulatif de toutes les séances renseignées avec boutons Voir.
+- Le détail de la séance sélectionnée affiche échauffement/contenu/V2 repliables
+  et résultats associés. La carte ouvre la saisie et, pour le coach, la vue groupe.
+- Historique complet repliable avec tableau de toutes les séances renseignées.
 - Lien depuis la séance du planning vers son carnet et lien inverse vers le planning.
 - Calendrier mensuel et carnet partagent la date sélectionnée et restent cohérents.
 - Une actualisation manuelle permet aux coachs de récupérer les nouvelles saisies.
@@ -1154,7 +1158,7 @@ et chronos réalisés lors des séances, désormais consultables par les coachs.
 - Coach ou admin + coach : résultats de tous les membres qui les ont renseignés,
   y compris les autres coachs et lui-même ; pas les références personnelles.
 - Le filtrage est fait en SQL/API avant transmission au navigateur.
-- Le formulaire du haut reste toujours personnel, même dans la vue coach.
+- La saisie dans la fenêtre reste toujours personnelle, même dans la vue coach.
 - Aucun coach/admin ne peut modifier un résultat au nom d’un autre membre.
 - L’id utilisateur provient de la session serveur, pas du corps de la requête.
 - Les chronos restent liés à l’id de séance : un déplacement change la date de
@@ -1193,7 +1197,7 @@ et chronos réalisés lors des séances, désormais consultables par les coachs.
 - API locale et Pages : exposition de coachEnabled, mêmes autorisations.
 - build.mjs / serveur statique : incluent les nouveaux modules client ainsi que
   session-upload.mjs déjà requis par l’import de planning existant.
-- service-worker.js : cache statique version v14, aucune mise en cache de l’API.
+- service-worker.js : cache statique version v15, aucune mise en cache de l’API.
 
 Nouvelles tables, créées sans remplacer users ou records :
   admin_coach_access(user_id PRIMARY KEY, enabled)
@@ -1212,5 +1216,79 @@ Nouvelles tables, créées sans remplacer users ou records :
   de déploiement effectif sur Cloudflare.
 - Les changements locaux préexistants (codes d’accès, import de planning) ont
   été conservés ; ne pas les supprimer lors de la préparation d’un futur commit.
+
+20. AJUSTEMENT VISUEL DU CARNET APRÈS LE COMMIT 8c083e4
+====================================================
+
+Demande : rendre Chrono Séance plus visuel, supprimer l’encadré de saisie du haut,
+saisir directement en cliquant une séance, alléger la frise en conservant les
+informations, avancer plus loin que de semaine en semaine, masquer les créneaux
+non choisis et mettre ce document à jour.
+
+Parcours actuel :
+  Chrono Séance
+    → navigation semaine / mois / date / aujourd’hui / jour renseigné
+    → clic sur une carte de séance colorée dans sa colonne jour
+    → fenêtre avec contenu de la séance repliable et saisie personnelle
+    → aperçu des répétitions → enregistrement
+    → détail et indicateurs de la frise actualisés.
+
+Conception visuelle :
+- Un seul grand bloc de frise, plutôt qu’un formulaire et une frise séparés.
+- Mois/année, intervalle de semaine et total compact en tête.
+- Jours visuellement alignés, date sélectionnée mise en évidence, journées vides
+  discrètes ; plusieurs cartes possibles dans la même colonne.
+- Couleur du type, titre, créneau si choisi et indicateur de résultats par carte.
+- Pour l’athlète : nombre de chronos personnels ; pour le coach : nombre de membres
+  ayant renseigné la séance, sans élargir les droits de modification.
+- Fenêtre de saisie : exemple 25.8 / 48.2 / 24.4 / 25, aperçu en pastilles,
+  ajout/modification et suppression personnelle. Pas de notice longue de syntaxe.
+- La fenêtre coach conserve aussi le tableau des résultats du groupe.
+- Sous la frise, une seule séance sélectionnée est détaillée ; les échauffements
+  et contenus sont repliables. L’historique complet est également repliable.
+
+Navigation longue portée : boutons Mois précédent/suivant et sélecteur de date.
+Un saut de mois garde le numéro du jour quand il existe ; sinon, prend le dernier
+jour du mois cible (exemple testé : 31 janvier → 28 février 2030).
+Les boutons de semaine et de jour renseigné restent disponibles.
+
+Compatibilité des données : aucune nouvelle migration ni réécriture de résultats.
+Les anciens textes utilisant des points-virgules/espaces restent lisibles grâce
+aux valeurs numériques déjà stockées. À l’ouverture de la modification, ces
+valeurs sont présentées avec des slashs ; la valeur des chronos est conservée.
+Les nouvelles saisies acceptent seulement tirets/slashs pour les répétitions.
+Les virgules décimales et minutes restent acceptées sans surcharge d’explication.
+
+Créneaux : ne plus afficher « Créneau à préciser », de séparateur orphelin ou de
+badge vide quand slot est non-precise ou absent. Concerne les cartes de planning,
+le carnet, les fenêtres et les listes d’échange. Dans le formulaire coach, garder
+un choix neutre Sans créneau. Ne pas attribuer un créneau à la place du coach.
+Les valeurs matin/apres-midi/soir et les données historiques restent inchangées.
+
+Fichiers concernés : app.js, community.css, session-results-core.mjs,
+session-results-test.mjs, session-results-browser-test.mjs, service-worker.js,
+README.md et les deux copies de context.txt. Cache statique : v15.
+
+Vérifications effectuées :
+- npm test : 13 tests réussis, avec conservation d’un résultat à ancien séparateur.
+- npm run test:results-browser : saisie au clic, deux séances/jour, confidentialité,
+  éditions, navigation semaine/mois/date, fin de mois et liens planning réussis.
+- npm run test:browser : parcours historiques réussis.
+- Contrôles visuels sur captures mobile et ordinateur ; pas de débordement global.
+- Build local réussi. Aucune intervention sur les comptes ou la base en ligne.
+- Ces changements ne sont pas encore publiés ; ne pas confondre leur vérification
+  locale avec un déploiement Cloudflare effectif.
+
+21. CONSIGNE PERMANENTE : COMMITS AUTOMATIQUES
+============================================
+
+À chaque modification du site, après les vérifications et la mise à jour de ce
+contexte, créer automatiquement un commit local descriptif sur la branche de
+travail. L’utilisatrice ne doit plus avoir à demander sa préparation : elle
+doit seulement cliquer sur Push origin dans GitHub Desktop.
+Ne pas effectuer le push ni déployer sans demande explicite. Ne sélectionner
+que les fichiers concernés ; exclure les dossiers locaux sans rapport, les
+bases, les secrets et les documents source. Préserver les changements étrangers
+à la tâche. Indiquer le hash du commit et sa branche dans le compte rendu.
 
 FIN DU CONTEXTE

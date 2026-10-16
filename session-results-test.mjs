@@ -6,8 +6,8 @@ import {sqliteD1} from './sqlite-d1.mjs';
 import {parseSessionTimes} from './session-results-core.mjs';
 
 test('Chronos séance : décimales, séparateurs, minutes et saisies invalides',()=>{
- assert.deepEqual(parseSessionTimes('25,4 - 25.8 / 26 ; 1:02,5\n27'),[25.4,25.8,26,62.5,27]);
- for(const value of ['', 'abc','1,2.3','0','1:70','1e3','<script>','; / -', '1 '.repeat(201)])assert.throws(()=>parseSessionTimes(value));
+ assert.deepEqual(parseSessionTimes('25,4 - 25.8 / 26 / 1:02,5 - 27'),[25.4,25.8,26,62.5,27]);
+ for(const value of ['', 'abc','1,2.3','0','1:70','1e3','<script>','; / -', '25;26','25 26','25\n26','1 / '.repeat(201)])assert.throws(()=>parseSessionTimes(value));
 });
 
 test('Pages : admin + coach, confidentialité des résultats, modifications, déplacements et migrations',async t=>{
@@ -27,6 +27,8 @@ test('Pages : admin + coach, confidentialité des résultats, modifications, dé
  const s2=(await request('/sessions','POST',{title:'Soir',date:'2026-10-16',type:'strength',slot:'soir',targets:[]},coach)).json;
  const path='/sessions/'+s1.id+'/times';
  assert.equal((await request(path,'PUT',{rawText:'25,4 / 26',version:0,userId:bob.user.id},alice)).status,200);
+ native.prepare('UPDATE session_results SET raw_text=? WHERE session_id=? AND user_id=?').run('25,4 ; 26',s1.id,alice.user.id);
+ assert.deepEqual((await state(alice)).sessionResults[0].times,[25.4,26],'Older separator formats stay readable without migrating stored data');
  assert.equal((await request(path,'PUT',{rawText:'27 - 28',version:0},bob)).status,200);
  assert.equal((await request('/sessions/'+s2.id+'/times','PUT',{rawText:'30',version:0},alice)).status,200);
  assert.equal((await state(alice)).sessionResults.length,2);assert.ok((await state(alice)).sessionResults.every(r=>r.userId===alice.user.id));
@@ -35,7 +37,7 @@ test('Pages : admin + coach, confidentialité des résultats, modifications, dé
  assert.equal((await request('/sessions/'+s1.id+'/comment','PUT',{rating:3,body:'Privé coach',isPrivate:true,version:0},alice)).status,200);
  assert.equal((await state(owner)).comments.some(c=>c.body==='Privé coach'),false);
  assert.equal((await request(path,'PUT',{rawText:'29',version:1,userId:alice.user.id},coach)).status,409,'Coach cannot write to another member’s existing record');
- assert.equal((await request(path,'PUT',{rawText:'25,8 ; 26.2',version:1},alice)).status,200);
+ assert.equal((await request(path,'PUT',{rawText:'25,8 / 26.2',version:1},alice)).status,200);
  assert.equal((await request(path,'PUT',{rawText:'99',version:1},alice)).status,409);
  assert.deepEqual((await state(alice)).sessionResults.find(r=>r.sessionId===s1.id).times,[25.8,26.2]);
  assert.equal((await request('/account/coach','PUT',{coach:true,version:1},owner)).status,200);
