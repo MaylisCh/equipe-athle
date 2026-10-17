@@ -6,7 +6,22 @@ function element(tag,text,className){const node=document.createElement(tag);if(t
 function enableWorkbookZoom(content,table,saved){
  const canvas=element('div',undefined,'workbook-canvas');table.before(canvas);canvas.append(table);
  const naturalWidth=table.offsetWidth,naturalHeight=table.offsetHeight,pointers=new Map(),listeners=[];
- let scale=1,automatic=!saved||saved.automatic,gesture=null,safari=false;
+ let scale=1,automatic=!saved||saved.automatic,gesture=null,safari=false,inertia=0,samples=[];
+ const stopInertia=()=>{cancelAnimationFrame(inertia);inertia=0;};
+ const record=()=>{const time=performance.now();samples.push({time,x:content.scrollLeft,y:content.scrollTop});samples=samples.filter(point=>time-point.time<=100);};
+ const coast=()=>{
+  if(samples.length<2||performance.now()-samples.at(-1).time>80)return;
+  const first=samples[0],last=samples.at(-1),elapsed=last.time-first.time;if(elapsed<8)return;
+  let vx=Math.max(-3,Math.min(3,(last.x-first.x)/elapsed)),vy=Math.max(-3,Math.min(3,(last.y-first.y)/elapsed)),previous=performance.now();
+  const frame=now=>{
+   const dt=Math.min(40,now-previous);previous=now;
+   const left=content.scrollLeft,top=content.scrollTop,decay=Math.exp(-dt/240);
+   content.scrollLeft+=vx*240*(1-decay);content.scrollTop+=vy*240*(1-decay);
+   vx=Math.abs(content.scrollLeft-left)<.1?0:vx*decay;vy=Math.abs(content.scrollTop-top)<.1?0:vy*decay;
+   if(Math.hypot(vx,vy)>.025)inertia=requestAnimationFrame(frame);else inertia=0;
+  };
+  if(Math.hypot(vx,vy)>.025)inertia=requestAnimationFrame(frame);
+ };
  const available=()=>Math.max(1,content.clientWidth-parseFloat(getComputedStyle(content).paddingLeft)-parseFloat(getComputedStyle(content).paddingRight));
  const paint=()=>{canvas.style.width=naturalWidth*scale+'px';canvas.style.height=naturalHeight*scale+'px';table.style.transform=`scale(${scale})`;canvas.dataset.scale=String(scale);};
  const change=(next,x,y)=>{
@@ -16,18 +31,19 @@ function enableWorkbookZoom(content,table,saved){
  };
  scale=saved?.scale??Math.min(1,available()/naturalWidth);paint();content.scrollLeft=saved?.left||0;content.scrollTop=saved?.top||0;
  const on=(name,handler,options)=>{content.addEventListener(name,handler,options);listeners.push(()=>content.removeEventListener(name,handler,options));};
- on('wheel',event=>{if(!event.ctrlKey&&!event.metaKey)return;event.preventDefault();if(safari)return;automatic=false;const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?content.clientHeight:1);change(scale*Math.exp(-delta*.01),event.clientX,event.clientY);},{passive:false});
+ on('wheel',event=>{stopInertia();if(!event.ctrlKey&&!event.metaKey)return;event.preventDefault();if(safari)return;automatic=false;const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?content.clientHeight:1);change(scale*Math.exp(-delta*.01),event.clientX,event.clientY);},{passive:false});
  const snapshot=()=>{const points=[...pointers.values()];if(points.length>=2){const [a,b]=points;return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,distance:Math.hypot(a.x-b.x,a.y-b.y)};}return points[0]||null;};
- on('pointerdown',event=>{if(event.pointerType==='mouse')return;pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});content.setPointerCapture(event.pointerId);gesture=snapshot();});
- on('pointermove',event=>{if(!pointers.has(event.pointerId))return;event.preventDefault();pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});const next=snapshot();if(!safari&&gesture&&next){if(gesture.distance&&next.distance){automatic=false;change(scale*next.distance/gesture.distance,gesture.x,gesture.y);}content.scrollLeft-=next.x-gesture.x;content.scrollTop-=next.y-gesture.y;}gesture=next;},{passive:false});
- const release=event=>{pointers.delete(event.pointerId);gesture=snapshot();};on('pointerup',release);on('pointercancel',release);on('lostpointercapture',release);
+ on('pointerdown',event=>{stopInertia();if(event.pointerType==='mouse')return;pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});content.setPointerCapture(event.pointerId);gesture=snapshot();samples=[];if(pointers.size===1)record();});
+ on('pointermove',event=>{if(!pointers.has(event.pointerId))return;event.preventDefault();pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});const next=snapshot();if(!safari&&gesture&&next){if(gesture.distance&&next.distance){automatic=false;change(scale*next.distance/gesture.distance,gesture.x,gesture.y);}content.scrollLeft-=next.x-gesture.x;content.scrollTop-=next.y-gesture.y;if(pointers.size===1)record();else samples=[];}gesture=next;},{passive:false});
+ const release=event=>{if(!pointers.has(event.pointerId))return;const fling=event.type==='pointerup'&&pointers.size===1&&!safari;pointers.delete(event.pointerId);gesture=snapshot();if(fling)coast();samples=[];if(pointers.size===1)record();};on('pointerup',release);on('pointercancel',release);on('lostpointercapture',release);
  // Safari exposes trackpad pinches as gesture events rather than ctrl+wheel.
  let safariStart=1;
- on('gesturestart',event=>{event.preventDefault();safari=true;automatic=false;safariStart=scale;},{passive:false});
+ on('gesturestart',event=>{event.preventDefault();stopInertia();samples=[];safari=true;automatic=false;safariStart=scale;},{passive:false});
  on('gesturechange',event=>{event.preventDefault();const rect=content.getBoundingClientRect();change(safariStart*event.scale,event.clientX||rect.left+rect.width/2,event.clientY||rect.top+rect.height/2);},{passive:false});
  on('gestureend',event=>{event.preventDefault();safari=false;},{passive:false});
- const observer=new ResizeObserver(()=>{if(automatic){scale=Math.min(1,available()/naturalWidth);paint();}});observer.observe(content);
- return {state:()=>({scale,automatic,left:content.scrollLeft,top:content.scrollTop}),destroy:()=>{observer.disconnect();listeners.forEach(remove=>remove());}};
+ const observer=new ResizeObserver(()=>{stopInertia();if(automatic){scale=Math.min(1,available()/naturalWidth);paint();}});observer.observe(content);
+ const visibility=()=>{if(document.hidden)stopInertia();};document.addEventListener('visibilitychange',visibility);
+ return {state:()=>({scale,automatic,left:content.scrollLeft,top:content.scrollTop}),destroy:()=>{stopInertia();observer.disconnect();document.removeEventListener('visibilitychange',visibility);listeners.forEach(remove=>remove());}};
 }
 function createPanel(){
  if(panel)return;

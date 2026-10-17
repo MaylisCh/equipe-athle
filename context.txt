@@ -1,14 +1,14 @@
 CONTEXT — CAHIER DES CHARGES ET GUIDE DE REPRISE DU SITE ÉQUIPE 400/4H
 =================================================================
 Document établi le 6 octobre 2026.
-Mise à jour fonctionnelle : 17 octobre 2026 — zoom gestuel et cadrage des aperçus Excel.
+Mise à jour fonctionnelle : 17 octobre 2026 — alignement à gauche et élan tactile Excel.
 Projet : portail privé de l’équipe d’athlétisme 400 m / 400 m haies du PUC.
 Responsable initiale : Maylis Chancerelle.
 Dépôt : https://github.com/MaylisCh/equipe-athle.git
 Branche de travail observée : main.
-Dernier commit observé avant cette évolution : 2c5502f — fichiers Excel muscu
-et recherches sans accents, après 70ad197 (distances des chronos).
-Les évolutions de la section 24 sont des changements supplémentaires, vérifiés
+Dernier commit observé avant cette évolution : be90ee1 — cadrage des aperçus
+Excel et zoom par gestes, après 2c5502f (fichiers muscu et recherches).
+Les évolutions de la section 25 sont des changements supplémentaires, vérifiés
 localement ; leur commit ne constitue pas une confirmation de déploiement.
 Historique : 61334f1 (codes d’accès) après 1b5b095 (import initial détaillé).
 
@@ -1532,7 +1532,8 @@ anciennes des volets de séance et de la flèche circulaire du carnet.
 
 24.2 Cadrage et fidélité
 - À l’ouverture, adaptation automatique à la largeur disponible, sans agrandir
-  les petites feuilles au-delà de 100 %. Une feuille étroite est centrée.
+  les petites feuilles au-delà de 100 %. La feuille est alignée à gauche
+  sur sa numérotation, même si elle est étroite (ajustement section 25).
 - La zone affichée est délimitée par les cellules dont le texte ou la valeur
   n’est pas vide, y compris zéro. Les cellules vides uniquement mises en forme
   et les fusions vides éloignées ne créent plus de grandes marges inutiles.
@@ -1573,5 +1574,31 @@ anciennes des volets de séance et de la flèche circulaire du carnet.
 - Tests exclusivement sur bases temporaires, sans modification des documents
   sources ni des données en ligne. Pas de migration ni de suppression de données.
 - Commit local automatique ; la publication reste faite par Push origin.
+
+25. APERÇU EXCEL : ALIGNEMENT À GAUCHE ET INERTIE TACTILE
+-----------------------------------------------------
+- La toile n’est plus centrée horizontalement : le bord de la numérotation
+  des lignes reste aligné à gauche de la zone de lecture quand la feuille
+  est moins large que la fenêtre. Le zoom au point de pincement et le
+  défilement horizontal des feuilles agrandies restent possibles.
+- Mobile : un glissement rapide à un doigt continue après le relâchement
+  avec une décélération progressive. L’élan s’arrête aux limites de la feuille,
+  au toucher suivant, à la molette, au début d’un pincement, au redimensionnement,
+  au masquage de la page, au changement de feuille ou à la fermeture.
+- Un maintien immobile avant de relâcher, une annulation tactile et le pincement
+  seul ne déclenchent pas d’élan. Aucun bouton n’est ajouté.
+- La vitesse est estimée sur les 100 dernières millisecondes ; relâchement
+  après 80 ms sans mouvement : pas d’élan. Vitesse limitée à 3 px/ms par axe,
+  décroissance exponentielle de constante 240 ms via requestAnimationFrame.
+- L’inertie est locale à l’aperçu : le défilement natif et l’élan du pavé
+  tactile sur ordinateur restent inchangés.
+- Fichiers concernés : workbook-viewer.mjs, workbook.css, service-worker.js
+  (cache v19), attachments-browser-test.mjs, README.md et les deux context.txt.
+- Vérification navigateur sur une feuille longue de test : le défilement
+  progresse après retrait du doigt, un nouveau toucher l’arrête, un toucher
+  immobile ne le relance pas. Contrôle de l’alignement d’une feuille étroite.
+- Tests sur fichiers générés et bases temporaires uniquement : aucun original
+  Excel/Word ni aucune donnée en production n’est modifié.
+- Commit local automatique, sans push automatique.
 
 FIN DU CONTEXTE
