@@ -2,6 +2,8 @@ import { distances, types, parseTime, trainingTarget, equivalentIntensity, sessi
 import { seasonStart, seasonWeekCount, seasonWeekDate, seasonWeekForDate, defaultSeason } from './season.mjs';
 import { difficultyLabels, competitionLevels, mondayOf, addDays, isoWeekValue, dateFromWeek, publicDifficulty } from './community-core.mjs';
 import {parseSessionTimes,normalizeSessionDistances} from './session-results-core.mjs';
+import {openWorkbookViewer,closeWorkbookViewer} from './workbook-viewer.mjs';
+import {memberMatches} from './search-core.mjs';
 import { parseTrainingFile, nextWeekStartParis } from './session-upload.mjs';
 
 const $ = selector => document.querySelector(selector);
@@ -85,12 +87,32 @@ function targetCard(t) {
  const target=trainingTarget(state.profile.times,t.distance,t.percent);
  return `<div class="session-target">${name}${esc(t.distance)} m à ${esc(t.percent)} %<strong>${target?formatTime(target.targetTime):t.distance<50||t.distance>1500?'Estimation indisponible':`<a href="#chronos">Ajouter un chrono de référence</a>`}</strong>${target?`<span class="target-meta">${formatSpeed(target.targetSpeed)} · ${target.kind==='mesuré'?'chrono saisi':'estimation'}</span>`:''}</div>`;
 }
+function sessionDocuments(session){
+ const files=(state.attachments||[]).filter(file=>file.sessionId===session.id);
+ if(!files.length&&(!coach()||session.type!=='strength'))return '';
+ return `<div class="session-documents">${files.map(file=>`<div class="excel-document"><button class="excel-file" type="button" data-attachment="${esc(file.id)}" aria-label="Ouvrir ${esc(file.filename)}"><span class="excel-symbol" aria-hidden="true">X</span><span class="excel-filename">${esc(file.filename)}<small>Excel · ${Math.max(1,Math.ceil(file.size/1024))} Ko</small></span></button>${coach()?`<div class="excel-file-tools">${session.type==='strength'?`<label class="excel-replace">Remplacer<input class="visually-hidden" type="file" accept=".xlsx,.xls" data-session-files="${esc(session.id)}" data-replace-attachment="${esc(file.id)}"></label>`:''}<button type="button" class="danger-button" data-remove-attachment="${esc(file.id)}">Retirer</button></div>`:''}</div>`).join('')}${coach()&&session.type==='strength'&&files.length<5?`<label class="excel-upload">+ Fichier Excel<input class="visually-hidden" type="file" accept=".xlsx,.xls" multiple data-session-files="${esc(session.id)}"></label><p class="excel-upload-help">100 Ko par fichier · 5 fichiers maximum par séance</p>`:''}</div>`;
+}
+async function uploadSessionFiles(input){
+ const sessionId=input.dataset.sessionFiles,replaceId=input.dataset.replaceAttachment,files=[...input.files];if(!files.length)return;
+ const existing=(state.attachments||[]).filter(f=>f.sessionId===sessionId);
+ if(!replaceId&&existing.length+files.length>5)throw Error('Maximum 5 fichiers par séance.');
+ for(const file of files)if(!/\.(xlsx|xls)$/i.test(file.name)||file.size>100*1024)throw Error('Choisissez des fichiers Excel .xlsx ou .xls de 100 Ko maximum.');
+ input.disabled=true;let uploaded=0;
+ try{
+  for(const file of files){
+   const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+   const replaced=replaceId?(state.attachments||[]).find(f=>f.id===replaceId):null;
+   await api(replaceId?'/attachments/'+encodeURIComponent(replaceId):'/sessions/'+encodeURIComponent(sessionId)+'/attachments',replaceId?'PUT':'POST',{filename:file.name,contentBase64:btoa(binary),...(replaced?{version:replaced.version}:{})});uploaded++;
+  }
+  toast(uploaded===1?'Fichier Excel ajouté à la séance.':`${uploaded} fichiers ajoutés à la séance.`);
+ }finally{input.disabled=false;input.value='';if(uploaded){state=await api('/state');user=state.user;render();}}
+}
 function sessionCard(s) {
  const targets=s.targets||[];
  return `<article class="card session-card type-${esc(s.type)}"><div class="section-head"><div class="session-badges"><span class="pill type-badge">${esc(types[s.type])}</span> ${sessionSlot(s)?`<span class="pill">${esc(sessionSlot(s))}</span>`:''} ${loadBadge(s)}</div>${coach()?`<button class="secondary" data-edit="sessions" data-id="${esc(s.id)}">Modifier / déplacer</button>`:''}</div><p class="eyebrow">${esc(s.cycle||'ENTRAÎNEMENT')}</p><h2>${esc(s.title)}</h2>${s.subtitle?`<p class="session-subtitle">${esc(s.subtitle)}</p>`:''}
  ${s.type==='rest'?`<p class="prose muted">${esc(s.workout)}</p>`:`<div class="session-parts"><section class="session-part"><h3 class="part-label"><span>01</span> Échauffement</h3><p class="prose ${!s.warmup?'muted':''}">${esc(s.warmup||'Non renseigné par le coach.')}</p></section><section class="session-part"><h3 class="part-label"><span>02</span> Séance</h3><p class="prose">${esc(s.workout||'Le détail de la séance sera précisé par le coach.')}</p>${s.v2?`<aside class="variant"><h3>Version 2</h3><p class="prose">${esc(s.v2)}</p></aside>`:''}</section></div>`}
  ${targets.length?`<div class="session-targets">${targets.map(targetCard).join('')}</div>`:''}
- ${coach()&&s.coachNote?`<p class="coach-note"><strong>Note coach</strong><br>${esc(s.coachNote)}</p>`:''}${s.type!=='rest'?`<button class="secondary" data-times-session="${esc(s.id)}">Mes chronos de séance ↗</button>`:''}${sessionFeedback(s.id)}</article>`;
+ ${coach()&&s.coachNote?`<p class="coach-note"><strong>Note coach</strong><br>${esc(s.coachNote)}</p>`:''}${!['rest','strength'].includes(s.type)?`<button class="secondary" data-times-session="${esc(s.id)}">Mes chronos de séance ↗</button>`:''}${sessionDocuments(s)}${sessionFeedback(s.id)}</article>`;
 }
 function sessionFeedback(id) {
  const comments=(state.comments||[]).filter(c=>c.sessionId===id),summary=publicDifficulty(comments),mine=comments.some(c=>c.userId===user.id);
@@ -203,8 +225,8 @@ function shiftTimesMonth(step){
  return dateKey(new Date(current.getFullYear(),current.getMonth()+step,Math.min(current.getDate(),last)));
 }
 function resultSessions() {
- const sessions=new Map(state.sessions.filter(s=>s.type!=='rest').map(s=>[s.id,s]));
- for(const result of state.sessionResults||[])if(!sessions.has(result.sessionId))sessions.set(result.sessionId,result.session);
+ const sessions=new Map(state.sessions.filter(s=>!['rest','strength'].includes(s.type)).map(s=>[s.id,s]));
+ for(const result of state.sessionResults||[])if(result.session.type!=='strength'&&!sessions.has(result.sessionId))sessions.set(result.sessionId,result.session);
  const rank=slot=>['matin','apres-midi','soir','non-precise'].indexOf(slot||'non-precise');
  return [...sessions.values()].sort((a,b)=>a.date.localeCompare(b.date)||rank(a.slot)-rank(b.slot));
 }
@@ -220,7 +242,7 @@ function sessionTimesPage() {
  const selected=daily.find(s=>s.id===resultSessionId),mine=results.find(r=>r.sessionId===resultSessionId&&r.userId===user.id);
  const start=mondayOf(selectedDate),end=addDays(start,6),weekSessions=sessions.filter(s=>s.date>=start&&s.date<=end);
  const filled=sessions.filter(s=>results.some(r=>r.sessionId===s.id));
- const filledDates=[...new Set(results.map(r=>r.session.date))].sort(),previous=filledDates.filter(d=>d<selectedDate).at(-1),next=filledDates.find(d=>d>selectedDate);
+ const filledDates=[...new Set(filled.map(s=>s.date))].sort(),previous=filledDates.filter(d=>d<selectedDate).at(-1),next=filledDates.find(d=>d>selectedDate);
  $('#main').innerHTML=`<div class="page-intro"><div><p class="eyebrow">LE CARNET DES SÉANCES</p><h1>Chrono Séance.</h1><p class="muted">${coach()?'Les chronos du groupe, séance par séance.':'Vos répétitions, votre progression.'}</p></div><div class="actions"><button class="secondary" data-times-day="${today()}">Aujourd’hui</button><button class="text-button" id="refresh-times" aria-label="Actualiser les résultats">Actualiser</button></div></div>
  <section class="card times-calendar"><div class="times-toolbar"><div><p class="eyebrow">${esc(fromKey(selectedDate).toLocaleDateString('fr-FR',{month:'long',year:'numeric'}))}</p><h2>Du ${esc(shortDate(start))} au ${esc(shortDate(end))}</h2><p class="muted">${weekSessions.length} séance(s) · ${weekSessions.filter(s=>results.some(r=>r.sessionId===s.id)).length} renseignée(s)</p></div><div class="times-tools"><label class="times-date-label">Aller au…<input id="times-date" type="date" value="${selectedDate}" aria-label="Aller à une date"></label><button class="icon-button secondary" id="times-return-today" aria-label="Revenir à aujourd’hui" title="Aujourd’hui">↻</button></div></div>
  <div class="times-navigation"><div><button class="secondary" data-times-month="-1" aria-label="Mois précédent des chronos">« Mois</button><button class="icon-button secondary" data-times-day="${addDays(selectedDate,-7)}" aria-label="Semaine précédente des chronos">‹</button></div><span>Cliquez sur une séance pour saisir vos chronos</span><div><button class="icon-button secondary" data-times-day="${addDays(selectedDate,7)}" aria-label="Semaine suivante des chronos">›</button><button class="secondary" data-times-month="1" aria-label="Mois suivant des chronos">Mois »</button></div></div>
@@ -266,7 +288,7 @@ function editSessionTimes(id) {
 const joinedDate=m=>m.createdAt?new Date(m.createdAt).toLocaleDateString('fr-FR'):'Non renseignée';
 function groupPage() {
  $('#main').innerHTML=`<div class="page-intro"><div><p class="eyebrow">L’ANNUAIRE PRIVÉ</p><h1>Les visages du groupe.</h1><p class="muted">${state.members.length} membre(s) · Coordonnées visibles uniquement après connexion.</p></div></div><section class="card"><label class="search">Rechercher un membre<input id="member-search" type="search" placeholder="Prénom ou nom…"></label><div class="table-scroll"><table><thead><tr><th>Prénom</th><th>Nom</th><th>Téléphone</th><th>Profil</th><th>Ajout du compte</th></tr></thead><tbody id="member-rows"></tbody></table></div></section>`;
- const draw=()=>{const query=$('#member-search').value.toLocaleLowerCase('fr');$('#member-rows').innerHTML=state.members.filter(m=>(m.name+' '+m.lastName).toLocaleLowerCase('fr').includes(query)).map(m=>`<tr><td><strong>${esc(m.name)}</strong>${m.id===user.id?' <small>(vous)</small>':''}</td><td>${esc(m.lastName)||'—'}</td><td>${esc(m.phone)||'<span class="muted">Non renseigné</span>'}</td><td><span class="pill">${memberRoleLabel(m)}</span></td><td>${joinedDate(m)}</td></tr>`).join('');};$('#member-search').oninput=draw;draw();
+ const draw=()=>{const query=$('#member-search').value;$('#member-rows').innerHTML=state.members.filter(m=>memberMatches(m,query)).map(m=>`<tr><td><strong>${esc(m.name)}</strong>${m.id===user.id?' <small>(vous)</small>':''}</td><td>${esc(m.lastName)||'—'}</td><td>${esc(m.phone)||'<span class="muted">Non renseigné</span>'}</td><td><span class="pill">${memberRoleLabel(m)}</span></td><td>${joinedDate(m)}</td></tr>`).join('');};$('#member-search').oninput=draw;draw();
 }
 function sessionImportPage() {
  const cutoff=nextWeekStartParis(),days=importPreview?.days||[],future=days.filter(day=>day.date>=cutoff),past=days.length-future.length;
@@ -303,7 +325,8 @@ function settingsPage() {
   const count=state.members.filter(m=>m.role==='admin').length;
   $('#main').insertAdjacentHTML('beforeend',`<section class="card"><h2>Codes d’accès au groupe</h2><p class="help">Ces codes sont communs à tous les comptes admin et visibles ici en permanence. Les majuscules et les minuscules comptent. Changer un code invalide immédiatement l’ancien.</p><form id="access-codes-form" data-version="${state.accessCodes.version}"><div class="form-grid"><label>Code du groupe<input name="groupCode" value="${esc(state.accessCodes.groupCode)}" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="128" required></label><label>Code coach<input name="coachCode" value="${esc(state.accessCodes.coachCode)}" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="128" required></label></div><p id="access-codes-error" role="alert" class="error"></p><div class="form-actions"><button type="submit">Mettre à jour les codes</button></div></form></section>`);
   $('#access-codes-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type=submit]');button.disabled=true;$('#access-codes-error').textContent='';try{await api('/access-codes','PUT',{groupCode:form.elements.groupCode.value,coachCode:form.elements.coachCode.value,version:Number(form.dataset.version)});state=await api('/state');user=state.user;render();toast('Les codes d’accès ont été mis à jour pour tous les admins.');}catch(e){$('#access-codes-error').textContent=e.message;}finally{button.disabled=false;}};
-  $('#main').insertAdjacentHTML('beforeend',`<section class="card"><h2>Gestion des membres</h2><p class="help">Les admins gèrent les comptes et les rôles. Les coachs modifient les séances. Une réinitialisation déconnecte le membre et lui attribue le nouveau mot de passe que vous choisissez, en respectant les majuscules.</p><div class="table-scroll"><table class="member-management"><thead><tr><th>Membre</th><th>Identifiant</th><th>Ajout du compte</th><th>Profil</th><th>Droits</th><th>Compte</th></tr></thead><tbody>${state.members.map(m=>`<tr><td>${esc(m.name)} ${esc(m.lastName)}${m.id===user.id?' (vous)':''}</td><td>${esc(m.email)}</td><td>${joinedDate(m)}</td><td>${memberRoleLabel(m)}</td><td><div class="member-actions"><button class="secondary" data-admin-action="${m.role==='admin'?'revoke-admin':'grant-admin'}" data-id="${esc(m.id)}" ${m.role==='admin'&&count===1?'disabled title="Le dernier admin ne peut pas être retiré"':''}>${m.role==='admin'?'Retirer les droits admin':'Nommer admin'}</button>${m.role!=='admin'?`<button class="secondary" data-member-action="coach" data-id="${esc(m.id)}">${m.role==='coach'?'Retirer les droits coach':'Nommer coach'}</button>`:''}</div></td><td>${m.id===user.id?'<span class="muted">Vos formulaires personnels ci-dessus</span>':`<div class="member-actions"><button class="secondary" data-member-action="password" data-id="${esc(m.id)}">Réinitialiser le mot de passe</button><button class="secondary danger-button" data-member-action="delete" data-id="${esc(m.id)}">Supprimer le compte</button></div>`}</td></tr>`).join('')}</tbody></table></div><p class="help">Il doit rester au moins un admin. Une suppression efface les données personnelles du membre, ses commentaires et ses inscriptions, mais conserve les séances et compétitions partagées. Les dates anciennes non enregistrées restent « Non renseignée ».</p></section>`);
+  $('#main').insertAdjacentHTML('beforeend',`<section class="card"><h2>Gestion des membres</h2><p class="help">Les admins gèrent les comptes et les rôles. Les coachs modifient les séances. Une réinitialisation déconnecte le membre et lui attribue le nouveau mot de passe que vous choisissez, en respectant les majuscules.</p><label class="search">Rechercher un compte<input id="admin-member-search" type="search" placeholder="Prénom, nom ou identifiant…"></label><p id="admin-member-count" class="help" role="status"></p><div class="table-scroll"><table class="member-management"><thead><tr><th>Membre</th><th>Identifiant</th><th>Ajout du compte</th><th>Profil</th><th>Droits</th><th>Compte</th></tr></thead><tbody>${state.members.map(m=>`<tr data-member-id="${esc(m.id)}"><td>${esc(m.name)} ${esc(m.lastName)}${m.id===user.id?' (vous)':''}</td><td>${esc(m.email)}</td><td>${joinedDate(m)}</td><td>${memberRoleLabel(m)}</td><td><div class="member-actions"><button class="secondary" data-admin-action="${m.role==='admin'?'revoke-admin':'grant-admin'}" data-id="${esc(m.id)}" ${m.role==='admin'&&count===1?'disabled title="Le dernier admin ne peut pas être retiré"':''}>${m.role==='admin'?'Retirer les droits admin':'Nommer admin'}</button>${m.role!=='admin'?`<button class="secondary" data-member-action="coach" data-id="${esc(m.id)}">${m.role==='coach'?'Retirer les droits coach':'Nommer coach'}</button>`:''}</div></td><td>${m.id===user.id?'<span class="muted">Vos formulaires personnels ci-dessus</span>':`<div class="member-actions"><button class="secondary" data-member-action="password" data-id="${esc(m.id)}">Réinitialiser le mot de passe</button><button class="secondary danger-button" data-member-action="delete" data-id="${esc(m.id)}">Supprimer le compte</button></div>`}</td></tr>`).join('')}</tbody></table></div><p class="help">Il doit rester au moins un admin. Une suppression efface les données personnelles du membre, ses commentaires et ses inscriptions, mais conserve les séances et compétitions partagées. Les dates anciennes non enregistrées restent « Non renseignée ».</p></section>`);
+  const search=$('#admin-member-search'),filterMembers=()=>{const matches=new Set(state.members.filter(m=>memberMatches(m,search.value,true)).map(m=>m.id));document.querySelectorAll('.member-management tbody tr').forEach(row=>row.hidden=!matches.has(row.dataset.memberId));$('#admin-member-count').textContent=`${matches.size} compte(s) sur ${state.members.length}`;};search.oninput=filterMembers;filterMembers();
  }
  $('#settings-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,button=form.querySelector('button');button.disabled=true;$('#settings-error').textContent='';try{await api('/account','PUT',{...Object.fromEntries(new FormData(form)),version:Number(form.dataset.version)});state=await api('/state');user=state.user;render();toast('Vos réglages sont enregistrés.');}catch(e){$('#settings-error').textContent=e.message;}finally{button.disabled=false;}};
 }
@@ -442,7 +465,7 @@ async function archive(collection,id) {
 function deleteAccount() {
  modal('Supprimer mon profil',`<p>Votre compte, vos coordonnées et vos chronos seront définitivement supprimés. Toutes vos sessions seront fermées.</p><p class="help">Le planning, les circuits et les informations partagées du groupe sont conservés.</p><label class="checkbox"><input type="checkbox" name="confirm" required> Êtes-vous sûr de vouloir supprimer ce compte ?</label>`,async form=>{
   await api('/account','DELETE',{identifier:user.email,confirm:form.elements.confirm.checked});
-  user=null;state=null;accessToken=null;csrf=null;$('#editor').close();$('#connection').hidden=true;history.replaceState(null,'','#connexion');render();toast('Votre profil et vos chronos personnels ont été supprimés.');return false;
+  closeWorkbookViewer();user=null;state=null;accessToken=null;csrf=null;$('#editor').close();$('#connection').hidden=true;history.replaceState(null,'','#connexion');render();toast('Votre profil et vos chronos personnels ont été supprimés.');return false;
  },'Supprimer définitivement mon profil');
 }
 $('#editor-form').onsubmit=async event=>{
@@ -456,6 +479,12 @@ $('#editor').addEventListener('cancel',()=>setTimeout(render,0));
 document.addEventListener('click',async event=>{
  const button=event.target.closest('button');if(!button)return;
  try {
+  if(button.dataset.attachment){const file=(state.attachments||[]).find(f=>f.id===button.dataset.attachment);if(file)await openWorkbookViewer(file,api);return;}
+  if(button.dataset.removeAttachment){
+   const file=(state.attachments||[]).find(f=>f.id===button.dataset.removeAttachment);if(!coach()||!file)return;
+   if(!confirm(`Retirer « ${file.filename} » de cette séance pour tout le groupe ?`))return;
+   await api('/attachments/'+encodeURIComponent(file.id),'DELETE',{version:file.version});state=await api('/state');render();toast('Fichier retiré de la séance.');return;
+  }
   if(button.dataset.timesDay){chooseTimesDate(button.dataset.timesDay);render();return;}
   if(button.dataset.timesMonth){chooseTimesDate(shiftTimesMonth(Number(button.dataset.timesMonth)));render();return;}
   if(button.dataset.openTimes){
@@ -500,7 +529,7 @@ document.addEventListener('click',async event=>{
   if(button.classList.contains('remove-target')){button.closest('.target-row').remove();return;}
   switch(button.dataset.action){
    case 'menu':$('#navigation').classList.toggle('mobile-open');button.setAttribute('aria-expanded',$('#navigation').classList.contains('mobile-open'));break;
-   case 'logout':await api('/logout','POST',{});user=null;state=null;accessToken=null;csrf=null;$('#connection').hidden=true;history.replaceState(null,'','#connexion');render();break;
+   case 'logout':await api('/logout','POST',{});closeWorkbookViewer();user=null;state=null;accessToken=null;csrf=null;$('#connection').hidden=true;history.replaceState(null,'','#connexion');render();break;
    case 'today':selectDate(today());break;
    case 'prev-week':{const dt=fromKey(selectedDate);dt.setDate(dt.getDate()-7);selectDate(dateKey(dt));break;}
    case 'next-week':{const dt=fromKey(selectedDate);dt.setDate(dt.getDate()+7);selectDate(dateKey(dt));break;}
@@ -516,7 +545,9 @@ document.addEventListener('click',async event=>{
  }catch(e){toast(e.message);}
 });
 document.addEventListener('change',async event=>{
- const input=event.target;if(!input.matches('input[data-signup]'))return;
+ const input=event.target;
+ if(input.matches('input[data-session-files]')){try{await uploadSessionFiles(input);}catch(e){toast(e.message);}return;}
+ if(!input.matches('input[data-signup]'))return;
  const registered=input.checked;input.disabled=true;
  try{await api('/competitions/'+encodeURIComponent(input.dataset.signup)+'/signup','PUT',{registered});state=await api('/state');render();toast(registered?'Votre inscription est enregistrée.':'Votre inscription a été retirée.');}catch(e){input.checked=!registered;toast(e.message);}finally{input.disabled=false;}
 });
@@ -531,7 +562,7 @@ async function refresh() {
   const next=await api('/state');if(accessToken!==refreshToken||!state)return;const changed=state.revision!==next.revision;state=next;user=next.user;$('#connection').hidden=true;
   pendingRender ||= changed;
   if(pendingRender&&!$('#editor').open&&!['chronos','reglages','chrono-seance'].includes(page())&&!['library-search','member-search'].includes(document.activeElement?.id)){render();toast('Le contenu du groupe a été mis à jour.');}
- }catch(e){if(e.status===401){user=null;state=null;accessToken=null;csrf=null;$('#editor').close();render();toast('Votre session a expiré. Reconnectez-vous.');}else{$('#connection').hidden=false;$('#connection').textContent='Connexion interrompue. Dernier planning chargé affiché ; nouvelles modifications en attente de connexion.';}}
+ }catch(e){if(e.status===401){closeWorkbookViewer();user=null;state=null;accessToken=null;csrf=null;$('#editor').close();render();toast('Votre session a expiré. Reconnectez-vous.');}else{$('#connection').hidden=false;$('#connection').textContent='Connexion interrompue. Dernier planning chargé affiché ; nouvelles modifications en attente de connexion.';}}
  finally{pollBusy=false;}
 }
 setInterval(refresh,60000);document.addEventListener('visibilitychange',refresh);

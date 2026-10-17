@@ -59,6 +59,22 @@ Chaque compétition apparaît dans la frise et l’onglet **Compétitions**. Un 
 
 La case **Inscription** ajoute uniquement le compte connecté, athlète, coach ou admin. La décocher retire son inscription. **Inscrits** montre au groupe les noms et profils ayant coché cette case. Ces inscriptions sont une liste interne au groupe ; elles ne constituent pas une inscription auprès de l’organisateur d’une compétition.
 
+## Fichiers Excel des séances de musculation
+
+Dans la fiche d’une séance de **Musculation**, le coach utilise **+ Fichier Excel**. Jusqu’à **5 fichiers .xlsx ou .xls par séance**, chacun de **100 Ko maximum** (102 400 octets). Cette limite est appliquée dans le navigateur et l’API. Les pièces jointes sont représentées par une icône Excel et leur nom à l’emplacement de l’ancien bouton de chronos ; les séances de musculation sont retirées du carnet de chronos et les nouvelles saisies de chronos y sont refusées. Les éventuels anciens résultats restent en base, sans suppression automatique.
+
+Cliquer une icône ouvre un **aperçu en lecture seule** dans une fenêtre indépendante : il reste ouvert en changeant d’onglet du site. Fermer par la croix, Échap ou un clic à l’extérieur ; la navigation principale reste utilisable sans fermer le document. Sur mobile, le menu de navigation reste accessible. Le bouton **Télécharger** restitue exactement l’original. La déconnexion ferme la fenêtre et libère le fichier en mémoire.
+
+L’aperçu .xlsx conserve les tableaux, fusions de cellules, couleurs, bordures, retours à la ligne et feuilles. Les formules ne sont pas exécutées : il utilise les valeurs enregistrées dans le fichier. Ce n’est pas un moteur Excel complet : graphiques, images et mises en page complexes peuvent ne pas être reproduits ; l’original reste disponible. Limites d’aperçu : 20 feuilles, 300 lignes et 50 colonnes par feuille, avec avertissement si la zone est tronquée. Les anciens .xls sont téléchargeables, sans aperçu intégré. Aucune copie n’est envoyée à un service de lecture externe. Le classeur entier est partagé avec le groupe : ne pas y inclure d’informations privées, même dans une feuille masquée.
+
+Les coachs et admins avec fonctions coach peuvent ajouter, remplacer et retirer les fichiers. Les athlètes et admins non-coachs peuvent uniquement les consulter/télécharger. L’accès exige une connexion ; il n’existe pas de lien public direct ni de cache de l’API. Un fichier est lié à l’id de séance et suit ses déplacements ; supprimer le compte du coach ne supprime pas le document partagé. L’archivage d’une séance masque ses pièces jointes du planning actif sans les effacer.
+
+Stockage dans la base D1 existante, sans nouvelle liaison Cloudflare : table additive `session_attachments`, octets originaux encodés en base64. `/api/state` renvoie seulement les métadonnées, pas le contenu. Le fichier n’est chargé qu’à son ouverture. La taille choisie reste très inférieure à la [limite D1 par ligne/valeur](https://developers.cloudflare.com/d1/platform/limits/). Aucun Word/Excel source n’est modifié. Les fichiers importés comme pièces jointes ne remplacent aucune séance et ne passent pas par l’outil d’import de planning.
+
+## Recherche des membres
+
+**Réglages → Gestion des membres** comprend une recherche par prénom, nom ou identifiant et un compteur des comptes trouvés. **Le groupe** conserve sa recherche par prénom/nom. Les deux ignorent accents, casse, ligatures (`œ`/`oe`, `æ`/`ae`), apostrophes et traits d’union ; les mots peuvent être saisis dans un autre ordre. Par exemple `elodie coeur hotel` retrouve `Élodie Cœur-D’Hôtel`. Cela ne modifie pas les règles de casse des identifiants de connexion.
+
 ## Bibliothèque et infos du groupe
 
 Le coach peut ajouter, modifier ou archiver les acronymes, circuits et informations. Les paragraphes fournis en début d’année sont conservés, regroupés sous « Organisation & pratique » et « Relations & règles du groupe ». Ils ne sont accessibles qu’après connexion.

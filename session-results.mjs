@@ -21,7 +21,7 @@ export async function sessionResultsAction(db,ctx,path,method,body) {
  const id=decodeURIComponent(match[1]);
  const row=await stmt(db,"SELECT data,archived FROM records WHERE collection='sessions' AND id=?",id).first();
  if(!row)fail('Séance introuvable.',404);
- if(JSON.parse(row.data).type==='rest')fail('Choisissez une séance, pas un jour de repos.');
+ if(['rest','strength'].includes(JSON.parse(row.data).type))fail('Les chronos de séance ne concernent pas les jours de repos ou la musculation.');
  if(!Number.isInteger(body.version)||body.version<0)fail('Version invalide.');
  if(row.archived&&body.version===0)fail('Cette séance est archivée : seuls les chronos déjà saisis peuvent être corrigés.',409);
  const old=await stmt(db,'SELECT t.version,t.times_json,d.distances_json FROM session_results t LEFT JOIN session_result_distances d ON d.session_id=t.session_id AND d.user_id=t.user_id WHERE t.session_id=? AND t.user_id=?',id,ctx.id).first();

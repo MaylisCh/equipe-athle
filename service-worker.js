@@ -1,5 +1,5 @@
-const CACHE='equipe-athle-v16';
-const SHELL=['/','/index.html','/app.js','/core.mjs','/season.mjs','/community-core.mjs','/session-results-core.mjs','/session-upload.mjs','/style.css','/layout.css','/calendar.css','/community.css','/manifest.webmanifest','/puc-logo.png'];
+const CACHE='equipe-athle-v17';
+const SHELL=['/','/index.html','/app.js','/core.mjs','/season.mjs','/community-core.mjs','/session-results-core.mjs','/session-upload.mjs','/style.css','/layout.css','/calendar.css','/community.css','/excel-preview.mjs','/workbook-viewer.mjs','/search-core.mjs','/workbook.css','/manifest.webmanifest','/puc-logo.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

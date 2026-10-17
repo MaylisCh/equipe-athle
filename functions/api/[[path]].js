@@ -116,17 +116,18 @@ async function session(db,user) {
  await stmt(db,'INSERT INTO auth(token,user_id,expires) VALUES(?,?,?)',await digest(token),user.id,Date.now()+12*3600000).run();
  return {user:publicUser(user),accessToken:token,csrf:null};
 }
-async function bodyJSON(request) {
+async function bodyJSON(request,limit=128*1024) {
  if(!request.headers.get('content-type')?.startsWith('application/json'))error('JSON requis.',415);
- if(Number(request.headers.get('content-length')||0)>128*1024)error('Contenu trop volumineux.',413);
- try{const value=await request.json();if(!value||Array.isArray(value)||typeof value!=='object')error('JSON invalide.');return value;}catch(e){if(e.status)throw e;error('JSON invalide.');}
+ if(Number(request.headers.get('content-length')||0)>limit)error('Contenu trop volumineux.',413);
+ try{const reader=request.body?.getReader(),decoder=new TextDecoder();let raw='',size=0;if(reader){for(;;){const {value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>limit){await reader.cancel();error('Contenu trop volumineux.',413);}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();}const value=JSON.parse(raw);if(!value||Array.isArray(value)||typeof value!=='object')error('JSON invalide.');return value;}catch(e){if(e.status)throw e;error('JSON invalide.');}
 }
 async function handle(request,db) {
  const path=new URL(request.url).pathname,method=request.method;
  const ctx=await userFromRequest(db,request);
  const setupComplete=!!(await db.prepare("SELECT value FROM meta WHERE key='setup_complete'").first())?.value;
  if(method==='GET'&&path==='/api/auth')return json({setup:!setupComplete,pending:setupComplete?null:{name:'Maylis',lastName:'Chancerelle',email:'maylis'},setupCodeRequired:false,user:ctx?publicUser(ctx):null,csrf:null});
- const body=method==='GET'?{}:await bodyJSON(request);
+ const fileUpload=/^\/api\/(?:sessions\/[^/]+\/attachments|attachments\/[^/]+)$/.test(path)&&['POST','PUT'].includes(method);
+ const body=method==='GET'?{}:await bodyJSON(request,fileUpload?192*1024:128*1024);
  if(method==='POST'&&['/api/login','/api/setup','/api/register'].includes(path)) {
   const email=str(body.email,'Identifiant',180,true);
   if(path==='/api/login'){

@@ -156,12 +156,13 @@ function loginCookie(res, user) {
  db.prepare('INSERT INTO auth VALUES(?,?,?,?)').run(hash(token),user.id,csrf,Date.now()+12*3600000);
  return {user:publicUser(user),csrf,accessToken:token};
 }
-async function bodyJSON(req) {
+async function bodyJSON(req,limit=128*1024) {
  let size=0,chunks=[];
- for await (const chunk of req) {size+=chunk.length;if(size>128*1024) fail('Contenu trop volumineux.',413);chunks.push(chunk);}
+ for await (const chunk of req) {size+=chunk.length;if(size>limit) fail('Contenu trop volumineux.',413);chunks.push(chunk);}
  try {const value=JSON.parse(Buffer.concat(chunks).toString()||'{}');if(!value||Array.isArray(value)||typeof value!=='object')fail('JSON invalide.');return value;}catch(e){if(e.status)throw e;fail('JSON invalide.');}
 }
 const allowedStatic = new Map([
+ ['/excel-preview.mjs',['excel-preview.mjs','text/javascript']],['/workbook-viewer.mjs',['workbook-viewer.mjs','text/javascript']],['/search-core.mjs',['search-core.mjs','text/javascript']],['/workbook.css',['workbook.css','text/css']],
  ['/', ['index.html','text/html']], ['/index.html',['index.html','text/html']],
  ['/community-core.mjs',['community-core.mjs','text/javascript']],
  ['/session-results-core.mjs',['session-results-core.mjs','text/javascript']],
@@ -195,7 +196,8 @@ async function handle(req,res) {
    if(!req.headers.origin || !acceptedHosts.has(new URL(req.headers.origin).host) || (production && req.headers.origin!==ORIGIN)) fail('Origine non autorisée.',403);
    if(!(req.headers['content-type']||'').startsWith('application/json')) fail('JSON requis.',415);
    if(ctx && req.headers['x-csrf-token']!==ctx.csrf) fail('Session de formulaire invalide. Rechargez la page.',403);
-   body=await bodyJSON(req);
+   const fileUpload=/^\/api\/(?:sessions\/[^/]+\/attachments|attachments\/[^/]+)$/.test(path)&&['POST','PUT'].includes(req.method);
+   body=await bodyJSON(req,fileUpload?192*1024:128*1024);
   }
   if(req.method==='POST' && ['/api/login','/api/setup','/api/register'].includes(path)) {
    throttle(req.socket.remoteAddress);

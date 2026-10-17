@@ -30,7 +30,7 @@ test('Pages : admin + coach, confidentialité des résultats, modifications, dé
  const alice=await register('Alice'),bob=await register('Bob'),coach=await register('Coach',true);
  const state=async who=>(await request('/state','GET',undefined,who)).json;
  const s1=(await request('/sessions','POST',{title:'Matin',date:'2026-10-16',type:'speed',slot:'matin',warmup:'Échauffement A',workout:'3 × 200',targets:[]},coach)).json;
- const s2=(await request('/sessions','POST',{title:'Soir',date:'2026-10-16',type:'strength',slot:'soir',targets:[]},coach)).json;
+ const s2=(await request('/sessions','POST',{title:'Soir',date:'2026-10-16',type:'endurance',slot:'soir',targets:[]},coach)).json;
  const path='/sessions/'+s1.id+'/times';
  assert.equal((await request(path,'PUT',{rawText:'25,4 / 26',version:0,userId:bob.user.id},alice)).status,200);
  native.prepare('UPDATE session_results SET raw_text=? WHERE session_id=? AND user_id=?').run('25,4 ; 26',s1.id,alice.user.id);

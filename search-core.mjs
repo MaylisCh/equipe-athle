@@ -1,0 +1,2 @@
+export function normalizeSearch(value){return String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('fr').replace(/œ/g,'oe').replace(/æ/g,'ae').replace(/['’\-]/g,' ').replace(/\s+/g,' ').trim();}
+export function memberMatches(member,query,withIdentifier=false){const haystack=normalizeSearch([member.name,member.lastName,withIdentifier?member.email:''].join(' '));return normalizeSearch(query).split(' ').every(word=>haystack.includes(word));}

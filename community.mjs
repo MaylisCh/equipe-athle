@@ -1,6 +1,7 @@
 import { competitionData, mondayOf } from './community-core.mjs';
 import { seasonWeekDate } from './season.mjs';
 import {canCoach,resultsSchema,sessionResultsState,sessionResultsAction} from './session-results.mjs';
+import {attachmentsSchema,attachmentsState,attachmentAction} from './session-attachments.mjs';
 export {canCoach} from './session-results.mjs';
 
 const schema=`
@@ -66,6 +67,7 @@ export async function validateRegistrationCodes(db,body) {
 export async function initializeCommunity(db) {
  await db.exec(schema);
  await db.exec(resultsSchema);
+ await db.exec(attachmentsSchema);
  await stmt(db,"INSERT OR IGNORE INTO group_access_codes(id,group_code,coach_code) VALUES(1,'NOUVEAU','COACH')").run();
  // Capture the existing identifier once: later renaming must not change a provisional password.
  await db.prepare('INSERT OR IGNORE INTO account_credentials(user_id,initial_identifier) SELECT id,email FROM users').run();
@@ -96,7 +98,7 @@ export async function communityState(db,ctx) {
   credentialForUser(db,ctx),
   ctx.role==='admin'?db.prepare('SELECT group_code AS groupCode,coach_code AS coachCode,version FROM group_access_codes WHERE id=1').first():null
  ]);
- return {comments:comments.results.map(c=>({...c,isPrivate:!!c.isPrivate})),signups:signups.results,sessionResults:await sessionResultsState(db,ctx),passwordVersion:credentials.version,passwordProvisional:!!credentials.provisional,...(accessCodes?{accessCodes}: {})};
+ return {attachments:await attachmentsState(db),comments:comments.results.map(c=>({...c,isPrivate:!!c.isPrivate})),signups:signups.results,sessionResults:await sessionResultsState(db,ctx),passwordVersion:credentials.version,passwordProvisional:!!credentials.provisional,...(accessCodes?{accessCodes}: {})};
 }
 async function activeRecord(db,collection,id) {
  const row=await stmt(db,'SELECT * FROM records WHERE collection=? AND id=? AND archived=0',collection,id).first();
@@ -104,6 +106,7 @@ async function activeRecord(db,collection,id) {
  return {...JSON.parse(row.data),version:row.version};
 }
 export async function communityAction(db,ctx,path,method,body) {
+ const attached=await attachmentAction(db,ctx,path,method,body);if(attached)return attached;
  const result=await sessionResultsAction(db,ctx,path,method,body);if(result)return result;
  if(path==='/api/access-codes'&&method==='PUT'){
   if(ctx.role!=='admin')fail('Action réservée aux administrateurs.',403);

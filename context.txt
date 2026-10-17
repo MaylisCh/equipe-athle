@@ -1,14 +1,14 @@
 CONTEXT — CAHIER DES CHARGES ET GUIDE DE REPRISE DU SITE ÉQUIPE 400/4H
 =================================================================
 Document établi le 6 octobre 2026.
-Mise à jour fonctionnelle : 16 octobre 2026 — admin + coach, Allures, Chrono Séance.
+Mise à jour fonctionnelle : 17 octobre 2026 — fichiers Excel muscu et recherches sans accents.
 Projet : portail privé de l’équipe d’athlétisme 400 m / 400 m haies du PUC.
 Responsable initiale : Maylis Chancerelle.
 Dépôt : https://github.com/MaylisCh/equipe-athle.git
 Branche de travail observée : main.
-Dernier commit observé : 5214391 — frise simplifiée et saisie au clic,
-après 8c083e4 (Chrono Séance, Allures et fonctions admin-coach).
-Les évolutions de la section 22 sont des changements supplémentaires, vérifiés
+Dernier commit observé : 70ad197 — distances des chronos et détail des séances,
+après 5214391 (frise simplifiée et saisie au clic).
+Les évolutions de la section 23 sont des changements supplémentaires, vérifiés
 localement ; leur commit ne constitue pas une confirmation de déploiement.
 Historique : 61334f1 (codes d’accès) après 1b5b095 (import initial détaillé).
 
@@ -729,7 +729,7 @@ Interface :
 - community.css : commentaires, compétitions et gestion des membres.
 - puc-logo.png : logo officiel fourni, 300×300 dans l’état observé.
 - manifest.webmanifest : nom, icône, apparence et lancement de la PWA.
-- service-worker.js : cache des fichiers statiques, actuellement version v16.
+- service-worker.js : cache des fichiers statiques, actuellement version v17.
 - icon.svg : ressource historique ; le logo visuel retenu est puc-logo.png.
 
 Calculs et contenus :
@@ -1377,5 +1377,147 @@ anciennes des volets de séance et de la flèche circulaire du carnet.
 - Aucun compte ni document Word/Excel de production modifié pendant les tests.
 - Préparer automatiquement le commit local après vérification ; laisser le
   push GitHub Desktop et le déclenchement du déploiement à l’utilisatrice.
+
+23. FICHIERS EXCEL MUSCU ET RECHERCHES SANS ACCENTS — 17 OCTOBRE 2026
+=================================================================
+
+23.1 Demandes et choix retenus
+- Le coach continue à utiliser Excel pour ses blocs de musculation, répétitions
+  et charges. Le site doit joindre l’original, sans le convertir en séance texte.
+- Affichage sous forme d’icône Excel et nom de fichier dans la fiche de séance.
+- Clic = aperçu dans l’application et possibilité de télécharger l’original.
+- Plusieurs fichiers permis ; limite fixée par l’utilisatrice à 100 Ko par fichier,
+  soit 102 400 octets, et limite applicative de 5 fichiers par séance.
+- Ne pas proposer de chronos de séance pour la musculation : les documents
+  prennent leur emplacement dans la fiche et la muscu est exclue de la frise chrono.
+- Ajouter une recherche au-dessus de la gestion des comptes admin et permettre
+  de trouver les noms sans saisir les accents, dans cette liste et Le groupe.
+
+23.2 Ajout, remplacement et retrait de fichiers
+- Formats : .xlsx et .xls ; nom et taille contrôlés côté interface et côté serveur.
+- Fiche d’une séance de type strength : + Fichier Excel pour le coach, choix
+  multiple permis. Les athlètes ne voient pas cette commande.
+- Chaque fichier a sa propre icône cliquable ; les contrôles Remplacer/Retirer
+  sont réservés aux coachs et admins ayant activé leurs fonctions coach.
+- Retirer demande confirmation et enlève le fichier partagé de la base, pas le
+  document d’origine du coach. Remplacer utilise une version pour prévenir les
+  écrasements concurrents.
+- L’upload est une pièce jointe ; il ne déclenche pas l’import de planning,
+  ne remplace aucune séance et ne régénère pas seed.json.
+- Les documents Word/Excel présents dans le dossier source restent intacts.
+- Toute pièce jointe est commune au groupe : le classeur complet est fourni,
+  y compris ses feuilles masquées, pas seulement les cellules affichées à l’écran.
+
+23.3 Aperçu et navigation persistante
+- Fenêtre flottante indépendante de la page courante, hors du conteneur #main.
+- Changer d’onglet par le menu/en-tête ne la ferme pas ; le document et la feuille
+  sélectionnée restent visibles. Le menu mobile reste accessible au-dessus.
+- Croix de fermeture, touche Échap et clic à l’extérieur pour quitter. La zone de
+  navigation est explicitement exemptée de la fermeture au clic extérieur.
+- Navigation entre les feuilles du classeur, défilement local du tableau,
+  téléchargement de l’original en conservant exactement ses octets et son nom.
+- L’aperçu .xlsx prend en charge textes, valeurs numériques enregistrées, cellules
+  fusionnées, tailles de colonnes/lignes, couleurs principales, bordures, caractères
+  gras/italiques, alignements et retours à la ligne.
+- Les formules ne sont pas calculées : utiliser leur valeur sauvegardée, ou
+  afficher la formule comme texte si aucune valeur n’est disponible.
+- Pas d’exécution de macros, HTML ou scripts ; contenu des cellules injecté
+  comme texte, sans service tiers de lecture ni chargement des liens externes.
+- Limites d’aperçu : 20 premières feuilles, 300 lignes et 50 colonnes par feuille.
+  Si tronqué, signaler la limite ; l’original téléchargé reste complet.
+- Le .xls ancien est accepté au téléchargement mais pas interprété dans l’aperçu.
+- Images, graphiques et mises en page Excel complexes ne sont pas garantis ;
+  toujours garder le téléchargement, même si le lecteur échoue.
+- Décompression bornée : maximum 300 entrées ZIP, 24 Mo par partie et 40 Mo au total,
+  avec contrôle des tailles réellement décompressées et des tailles annoncées.
+- Fermer/réouvrir et changer de document invalident les chargements précédents ;
+  aucune réponse tardive ne doit rouvrir un fichier fermé.
+- Déconnexion/expiration de session ferment l’aperçu, libèrent l’URL temporaire
+  et retirent le contenu du classeur du DOM.
+- La persistance concerne la navigation interne, pas un rechargement complet
+  du navigateur, qui redemande une connexion selon la règle générale du site.
+
+23.4 Stockage, accès et migrations
+- Table additive : session_attachments(id, session_id, filename, mime, size,
+  content_base64, created, created_by, version), avec index de session_id.
+- Original stocké en base64 dans la D1 existante ; aucun nouveau service, R2,
+  binding ou paiement à configurer pour cette fonctionnalité.
+- Limite de 100 Ko décodés, validée d’après la taille réelle et la signature
+  ZIP (.xlsx) ou OLE (.xls). Ce contrôle n’est pas un antivirus et ne garantit
+  pas la lisibilité de tout classeur ; le lecteur gère les erreurs proprement.
+- Requêtes d’upload/remplacement : limite JSON spéciale de 192 Ko, nécessaire
+  pour l’encodage base64. Les autres corps JSON restent limités à 128 Ko.
+- /api/state contient attachments avec les métadonnées, jamais les octets.
+- POST /api/sessions/:id/attachments : ajout, coach seulement, séance muscu active.
+- GET /api/attachments/:id : original en base64, membre connecté uniquement.
+- PUT /api/attachments/:id : remplacement versionné, coach seulement.
+- DELETE /api/attachments/:id : retrait versionné, coach seulement.
+- Pas de lien public direct ; l’API utilise les sessions existantes, sans cache
+  du contenu privé et sans jeton dans l’URL.
+- Déplacer/échanger la séance conserve les fichiers via son id ; l’archiver
+  masque les métadonnées du planning actif sans effacement automatique.
+- Supprimer le compte de l’auteur ne supprime pas les documents du groupe.
+- Ne pas réimporter la base, changer la liaison DB ou recopier des données de test.
+- La taille D1 par ligne/valeur a été vérifiée dans la documentation officielle :
+  https://developers.cloudflare.com/d1/platform/limits/
+  La limite applicative choisie est bien plus petite et ne doit pas être augmentée
+  sans nouvelle demande de l’utilisatrice et vérification des conséquences.
+
+23.5 Musculation sans chronos de séance
+- Aucun bouton Mes chronos de séance sur les fiches strength ; les icônes Excel
+  et le contrôle coach d’ajout prennent sa place.
+- La frise Chrono Séance exclut la musculation. Le serveur refuse aussi de
+  créer/modifier des chronos de muscu, même par un appel direct.
+- Les anciens chronos de muscu, s’il en existe, restent stockés : ne pas les
+  effacer pour masquer cette fonction. Leurs données ne sont pas réaffichées
+  dans la frise actuelle, et leur présence ne doit pas fausser ses raccourcis.
+- Les commentaires de séance et notes de difficulté restent disponibles pour
+  la musculation : seule la saisie de chronos est concernée par ce retrait.
+
+23.6 Recherche des membres
+- Champ Rechercher un compte placé au-dessus du tableau Gestion des membres
+  des réglages admin ; recherche par prénom, nom et identifiant, compteur visible.
+- Le groupe : recherche par prénom/nom conservée.
+- Normalisation commune : décomposition Unicode, suppression des accents,
+  minuscules, œ→oe, æ→ae, apostrophes et traits d’union assimilés à des espaces.
+- Recherche par tous les mots, sans exiger l’ordre prénom/nom. Exemple :
+  ELODIE COEUR hotel retrouve Élodie Cœur-D’Hôtel.
+- Recherche de sous-chaînes ; ce n’est pas une correction approximative de
+  toutes les fautes d’orthographe.
+- Cette normalisation ne s’applique jamais aux identifiants ou mots de passe
+  de connexion : leur sensibilité à la casse et leur unicité restent intactes.
+
+23.7 Nouveaux fichiers et architecture
+- session-attachments.mjs : schéma, métadonnées, contrôle des fichiers et API.
+- excel-preview.mjs : lecture des feuilles/styles et génération de tableaux sûrs.
+- workbook-viewer.mjs : fenêtre indépendante, onglets, fermeture et téléchargement.
+- workbook.css : icônes/documents, aperçu et adaptation téléphone.
+- search-core.mjs : normalisation et recherche des noms.
+- attachment-fixtures.mjs : classeurs de test générés en mémoire, indépendants
+  des fichiers réels ; jamais exposés dans le build public.
+- attachments-test.mjs et attachments-browser-test.mjs : tests de cette évolution.
+- session-upload.mjs : décompression XLSX réutilisable, durcie, avec thème de couleurs.
+- API commune intégrée dans community.mjs ; versions locale et Pages alignées.
+- Build et liste des fichiers statiques enrichis ; cache statique v17.
+
+  Coach → fiche Muscu → icône/ajout → API authentifiée → session_attachments D1
+  Membre connecté → icône → GET privé → fenêtre XLSX en lecture seule
+                                      ├─ feuilles + tableaux/styles
+                                      ├─ téléchargement original exact
+                                      └─ navigation du site conservée
+
+23.8 Vérifications et publication
+- npm test : 18 tests réussis ; fichiers privés, rôles, remplacement/suppression,
+  contenu original exact, plafond de 5 fichiers, limite 100 Ko, migration sans perte,
+  muscu sans chronos, recherche et décompression bornée.
+- npm run test:attachments-browser : aperçu stylé, cellules fusionnées et feuilles,
+  téléchargement byte-identique, navigation persistante, fermeture croix/extérieur/
+  Échap, remplacement, rejet de fichier trop grand, recherche sans accents et mobile.
+- npm run test:browser et npm run test:results-browser : parcours existants réussis.
+- npm run test:attachments-browser -- --preview-file '../Muscu 2309.xlsx' :
+  contrôle complémentaire en lecture seule du vrai classeur fourni. Feuil1 :
+  63 lignes, 5 colonnes, 52 fusions ; original de 12 326 octets, inchangé.
+- Captures locales de contrôle dans test-results/, ignorées par Git.
+- Préparer le commit automatiquement ; aucun push ni déploiement sans demande.
 
 FIN DU CONTEXTE

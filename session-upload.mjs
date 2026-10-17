@@ -19,23 +19,24 @@ function matrixFromCsv(text) {
  return rows.map(cells=>cells.map(text=>({text:String(text??'').trim(),date:false})));
 }
 
-async function unzipXlsx(buffer) {
+export async function unzipXlsx(buffer) {
  const bytes=new Uint8Array(buffer),view=new DataView(buffer);
  let eocd=-1;for(let i=bytes.length-22;i>=Math.max(0,bytes.length-65557);i--)if(view.getUint32(i,true)===0x06054b50){eocd=i;break;}
  if(eocd<0)throw Error('Le fichier XLSX est illisible.');
- const count=view.getUint16(eocd+10,true),directory=view.getUint32(eocd+16,true),files=new Map();let at=directory,totalSize=0;
+ const count=view.getUint16(eocd+10,true),directory=view.getUint32(eocd+16,true),files=new Map();let at=directory,totalSize=0,actualSize=0;
  if(count>300)throw Error('Le classeur contient trop de fichiers.');
  for(let i=0;i<count;i++){
   if(view.getUint32(at,true)!==0x02014b50)throw Error('Le classeur XLSX est incomplet.');
   const method=view.getUint16(at+10,true),compressed=view.getUint32(at+20,true),uncompressed=view.getUint32(at+24,true),nameLength=view.getUint16(at+28,true),extraLength=view.getUint16(at+30,true),commentLength=view.getUint16(at+32,true),local=view.getUint32(at+42,true);
   const name=new TextDecoder().decode(bytes.subarray(at+46,at+46+nameLength));
   if(compressed>18_000_000)throw Error('Un fichier du classeur dépasse la taille maximale.');
-  if(/^(xl\/(workbook\.xml|_rels\/workbook\.xml\.rels|sharedStrings\.xml|styles\.xml|worksheets\/[^/]+\.xml))$/.test(name)){
+  if(/^(xl\/(workbook\.xml|_rels\/workbook\.xml\.rels|sharedStrings\.xml|styles\.xml|theme\/theme1\.xml|worksheets\/[^/]+\.xml))$/.test(name)){
    totalSize+=uncompressed;if(uncompressed>24_000_000||totalSize>40_000_000)throw Error('Le classeur décompressé dépasse la taille maximale.');
    const start=local+30+view.getUint16(local+26,true)+view.getUint16(local+28,true),data=bytes.slice(start,start+compressed);
    if(method===0)files.set(name,data);
-   else if(method===8){if(typeof DecompressionStream==='undefined')throw Error('Ce navigateur ne sait pas ouvrir les classeurs XLSX. Enregistre plutôt le fichier en CSV.');try{const stream=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));files.set(name,new Uint8Array(await new Response(stream).arrayBuffer()));}catch{throw Error('Le navigateur ne peut pas ouvrir ce classeur XLSX. Enregistre-le en CSV puis réessaie.');}}
+   else if(method===8){if(typeof DecompressionStream==='undefined')throw Error('Ce navigateur ne sait pas ouvrir les classeurs XLSX.');const reader=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader(),chunks=[];let size=0;try{for(;;){const {value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>24_000_000||actualSize+size>40_000_000){await reader.cancel();throw Error('Classeur décompressé trop volumineux.');}chunks.push(value);}const output=new Uint8Array(size);let offset=0;for(const chunk of chunks){output.set(chunk,offset);offset+=chunk.byteLength;}files.set(name,output);}catch{throw Error('Le classeur est illisible ou dépasse la taille maximale décompressée.');}}
    else throw Error('Méthode de compression XLSX non prise en charge.');
+   const decoded=files.get(name);actualSize+=decoded.byteLength;if(decoded.byteLength!==uncompressed||actualSize>40_000_000)throw Error('Le classeur XLSX est incomplet ou trop volumineux.');
   }
   at+=46+nameLength+extraLength+commentLength;
  }
