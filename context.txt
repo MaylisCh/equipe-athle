@@ -1,14 +1,14 @@
 CONTEXT — CAHIER DES CHARGES ET GUIDE DE REPRISE DU SITE ÉQUIPE 400/4H
 =================================================================
 Document établi le 6 octobre 2026.
-Mise à jour fonctionnelle : 17 octobre 2026 — fichiers Excel muscu et recherches sans accents.
+Mise à jour fonctionnelle : 17 octobre 2026 — zoom gestuel et cadrage des aperçus Excel.
 Projet : portail privé de l’équipe d’athlétisme 400 m / 400 m haies du PUC.
 Responsable initiale : Maylis Chancerelle.
 Dépôt : https://github.com/MaylisCh/equipe-athle.git
 Branche de travail observée : main.
-Dernier commit observé : 70ad197 — distances des chronos et détail des séances,
-après 5214391 (frise simplifiée et saisie au clic).
-Les évolutions de la section 23 sont des changements supplémentaires, vérifiés
+Dernier commit observé avant cette évolution : 2c5502f — fichiers Excel muscu
+et recherches sans accents, après 70ad197 (distances des chronos).
+Les évolutions de la section 24 sont des changements supplémentaires, vérifiés
 localement ; leur commit ne constitue pas une confirmation de déploiement.
 Historique : 61334f1 (codes d’accès) après 1b5b095 (import initial détaillé).
 
@@ -1519,5 +1519,59 @@ anciennes des volets de séance et de la flèche circulaire du carnet.
   63 lignes, 5 colonnes, 52 fusions ; original de 12 326 octets, inchangé.
 - Captures locales de contrôle dans test-results/, ignorées par Git.
 - Préparer le commit automatiquement ; aucun push ni déploiement sans demande.
+
+24. APERÇU EXCEL : CADRAGE UTILE ET ZOOM PAR GESTES
+------------------------------------------------
+24.1 Attentes validées
+- Aucun bouton de zoom, curseur ou barre d’outils supplémentaire.
+- Téléphone/tablette : pincer ou écarter deux doigts pour dézoomer/zoomer ;
+  glisser un doigt pour parcourir la feuille.
+- Ordinateur : pincement habituel sur le pavé tactile ; molette normale pour
+  défiler. Ctrl/Cmd + molette est également pris en charge dans l’aperçu.
+- Le zoom concerne exclusivement la feuille, jamais le site entier.
+
+24.2 Cadrage et fidélité
+- À l’ouverture, adaptation automatique à la largeur disponible, sans agrandir
+  les petites feuilles au-delà de 100 %. Une feuille étroite est centrée.
+- La zone affichée est délimitée par les cellules dont le texte ou la valeur
+  n’est pas vide, y compris zéro. Les cellules vides uniquement mises en forme
+  et les fusions vides éloignées ne créent plus de grandes marges inutiles.
+- Les fusions qui croisent cette zone sont conservées intégralement ; les
+  espaces, lignes, styles et cellules vides à l’intérieur du tableau restent.
+- Les références originales sont conservées : un tableau commençant en D5
+  affiche D et 5, pas A et 1. Les feuilles vides affichent « Feuille vide. ».
+- Largeurs des colonnes, hauteurs, couleurs et fusions restent prises en compte.
+- Limites de lecture inchangées : 20 feuilles, 300 lignes, 50 colonnes.
+
+24.3 Interaction et architecture
+- workbook-viewer.mjs : zoom local de 1 à 400 %, centré sur les doigts/le curseur ;
+  toile dimensionnée à l’échelle et défilement horizontal/vertical.
+- Événements wheel (pavés tactiles Chromium/Firefox), gesture (Safari) et
+  Pointer Events tactiles. Une séquence Safari n’est pas appliquée deux fois.
+- À l’intérieur de l’aperçu seulement, touch-action et overscroll empêchent
+  le pincement de zoomer le site et le défilement de partir derrière la fenêtre.
+- Chaque feuille conserve son zoom et sa position pendant cette ouverture.
+  La navigation entre les onglets du site ne ferme pas et ne réinitialise pas
+  le document. Fermer puis rouvrir revient au cadrage automatique initial.
+- Le cadrage automatique suit les redimensionnements tant qu’aucun zoom manuel
+  n’a été effectué. Un zoom manuel reste conservé après redimensionnement.
+- Observateur de taille et écouteurs sont libérés au changement de feuille,
+  à la fermeture et à la déconnexion.
+- excel-preview.mjs : calcul de la zone utile et tableau aux largeurs explicites.
+- workbook.css : toile transformée, défilement borné et styles mobiles.
+- Cache statique v18 ; aucun changement d’API, de base ou de liaison Cloudflare.
+
+24.4 Vérifications et précautions
+- npm test : 18 tests réussis ; npm run build vérifié.
+- test:attachments-browser : cadrage D5:G7 malgré un style vide en AX300,
+  fusion conservée, feuille vide, zoom pavé tactile/Safari, état entre feuilles,
+  adaptation mobile et absence de débordement horizontal initial.
+- Pincement et glissement vérifiés avec de vrais événements tactiles Chromium
+  pilotés par le navigateur de test, en plus des parcours existants.
+- La validation automatisée Safari simule ses événements gesture ; un contrôle
+  sur appareil Safari réel reste utile pour les particularités matérielles.
+- Tests exclusivement sur bases temporaires, sans modification des documents
+  sources ni des données en ligne. Pas de migration ni de suppression de données.
+- Commit local automatique ; la publication reste faite par Push origin.
 
 FIN DU CONTEXTE

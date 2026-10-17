@@ -50,15 +50,24 @@ export async function readWorkbookPreview(buffer){
   for(const merge of tags(doc,'mergeCell')){const [a,b]=merge.getAttribute('ref').split(':').map(coordinates);if(!a||!b||a.row>=300||a.col>=50)continue;const end={row:Math.min(b.row,299),col:Math.min(b.col,49)};merges.push({a,b:end});maxRow=Math.max(maxRow,end.row);maxCol=Math.max(maxCol,end.col);for(let r=a.row;r<=end.row;r++)for(let c=a.col;c<=end.col;c++)if(r!==a.row||c!==a.col)covered.add(`${r},${c}`);}
   for(const col of tags(doc,'col'))for(let c=Math.max(0,Number(col.getAttribute('min'))-1);c<Math.min(50,Number(col.getAttribute('max')));c++)widths.set(c,Math.min(420,Math.max(45,Number(col.getAttribute('width')||10)*7+5)));
   for(const row of tags(doc,'row'))if(row.hasAttribute('ht'))heights.set(Number(row.getAttribute('r'))-1,Math.min(200,Math.max(24,Number(row.getAttribute('ht'))*4/3)));
-  sheets.push({name:sheet.getAttribute('name')||'Feuille',cells,merges,covered,widths,heights,rows:maxRow+1,cols:maxCol+1,truncated});
+  // Style-only cells and distant empty merges are not part of the used area.
+  const populated=[...cells].filter(([,cell])=>cell.text.trim()!=='').map(([key])=>key.split(',').map(Number));
+  let range=null;
+  if(populated.length){
+   range={startRow:Math.min(...populated.map(c=>c[0])),endRow:Math.max(...populated.map(c=>c[0])),startCol:Math.min(...populated.map(c=>c[1])),endCol:Math.max(...populated.map(c=>c[1]))};
+   let expanded=true;while(expanded){expanded=false;for(const {a,b} of merges){if(a.row>range.endRow||b.row<range.startRow||a.col>range.endCol||b.col<range.startCol)continue;const next={startRow:Math.min(range.startRow,a.row),endRow:Math.max(range.endRow,b.row),startCol:Math.min(range.startCol,a.col),endCol:Math.max(range.endCol,b.col)};if(Object.keys(next).some(k=>next[k]!==range[k])){range=next;expanded=true;}}}
+  }
+  sheets.push({name:sheet.getAttribute('name')||'Feuille',cells,merges,covered,widths,heights,range,rows:range?range.endRow-range.startRow+1:0,cols:range?range.endCol-range.startCol+1:0,truncated});
  }
  if(!sheets.length)throw Error('Aucune feuille lisible. Téléchargez l’original pour l’ouvrir dans Excel.');
  return sheets;
 }
 export function workbookTable(sheet){
  const table=document.createElement('table');table.className='excel-table';table.setAttribute('aria-label',sheet.name);
- const cols=document.createElement('colgroup');cols.append(document.createElement('col'));for(let c=0;c<sheet.cols;c++){const col=document.createElement('col');col.style.width=(sheet.widths.get(c)||100)+'px';cols.append(col);}table.append(cols);
- const head=document.createElement('thead'),tr=document.createElement('tr');tr.append(document.createElement('th'));for(let c=0;c<sheet.cols;c++){const th=document.createElement('th');th.textContent=columnName(c);th.scope='col';tr.append(th);}head.append(tr);table.append(head);
+ if(!sheet.range)return table;
+ const {startRow,endRow,startCol,endCol}=sheet.range;
+ let width=34;const cols=document.createElement('colgroup');cols.append(document.createElement('col'));for(let c=startCol;c<=endCol;c++){const col=document.createElement('col'),size=sheet.widths.get(c)||100;col.style.width=size+'px';width+=size;cols.append(col);}table.style.width=width+'px';table.append(cols);
+ const head=document.createElement('thead'),tr=document.createElement('tr');tr.append(document.createElement('th'));for(let c=startCol;c<=endCol;c++){const th=document.createElement('th');th.textContent=columnName(c);th.scope='col';tr.append(th);}head.append(tr);table.append(head);
  const spans=new Map(sheet.merges.map(m=>[`${m.a.row},${m.a.col}`,m])),body=document.createElement('tbody');
- for(let r=0;r<sheet.rows;r++){const row=document.createElement('tr');if(sheet.heights.has(r))row.style.height=sheet.heights.get(r)+'px';const number=document.createElement('th');number.scope='row';number.textContent=r+1;row.append(number);for(let c=0;c<sheet.cols;c++){const key=`${r},${c}`;if(sheet.covered.has(key))continue;const td=document.createElement('td'),data=sheet.cells.get(key),merge=spans.get(key);if(data){td.textContent=data.text;Object.assign(td.style,data.style);}if(merge){td.rowSpan=merge.b.row-merge.a.row+1;td.colSpan=merge.b.col-merge.a.col+1;}row.append(td);}body.append(row);}table.append(body);return table;
+ for(let r=startRow;r<=endRow;r++){const row=document.createElement('tr');if(sheet.heights.has(r))row.style.height=sheet.heights.get(r)+'px';const number=document.createElement('th');number.scope='row';number.textContent=r+1;row.append(number);for(let c=startCol;c<=endCol;c++){const key=`${r},${c}`;if(sheet.covered.has(key))continue;const td=document.createElement('td'),data=sheet.cells.get(key),merge=spans.get(key);if(data){td.textContent=data.text;Object.assign(td.style,data.style);}if(merge){td.rowSpan=merge.b.row-merge.a.row+1;td.colSpan=merge.b.col-merge.a.col+1;}row.append(td);}body.append(row);}table.append(body);return table;
 }
