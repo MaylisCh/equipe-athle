@@ -182,7 +182,7 @@ export async function communityAction(db,ctx,path,method,body) {
    if(body.confirm!==true||body.identifier!==member.email)fail('Confirmez avec l’identifiant exact du membre.');
    if(member.role==='admin'&&(await db.prepare("SELECT COUNT(*) AS n FROM users WHERE role='admin'").first()).n<=1)fail('Le dernier administrateur ne peut pas être supprimé.',409);
    const deletionGuard="EXISTS (SELECT 1 FROM users WHERE id=? AND account_version=? AND (role<>'admin' OR (SELECT COUNT(*) FROM users WHERE role='admin')>1))";
-   const actions=['auth','account_credentials','session_comments','competition_signups','account_created','session_results','session_result_distances','admin_coach_access'].map(table=>stmt(db,`DELETE FROM ${table} WHERE user_id=? AND ${deletionGuard}`,id,id,body.version));
+   const actions=['auth','account_credentials','session_comments','competition_signups','account_created','session_results','session_result_distances','session_result_variants','admin_coach_access'].map(table=>stmt(db,`DELETE FROM ${table} WHERE user_id=? AND ${deletionGuard}`,id,id,body.version));
    actions.push(stmt(db,`DELETE FROM users WHERE id=? AND account_version=? AND (role<>'admin' OR (SELECT COUNT(*) FROM users WHERE role='admin')>1)`,id,body.version),revision(db));
    const results=await db.batch(actions);
    if(!results[actions.length-2].meta.changes)fail('Suppression impossible : compte modifié ou dernier admin.',409);
@@ -239,7 +239,7 @@ export async function communityAction(db,ctx,path,method,body) {
  fail('Route introuvable.',404);
 }
 export function removeMemberCommunity(db,id) {
- return ['account_credentials','session_comments','competition_signups','account_created','session_results','session_result_distances','admin_coach_access'].map(table=>stmt(db,`DELETE FROM ${table} WHERE user_id=?`,id));
+ return ['account_credentials','session_comments','competition_signups','account_created','session_results','session_result_distances','session_result_variants','admin_coach_access'].map(table=>stmt(db,`DELETE FROM ${table} WHERE user_id=?`,id));
 }
 export async function syncSessionCompetition(db,session) {
  const id=`session-${session.id}`,row=await stmt(db,"SELECT * FROM records WHERE collection='competitions' AND id=?",id).first();

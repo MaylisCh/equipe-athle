@@ -1,14 +1,14 @@
 CONTEXT — CAHIER DES CHARGES ET GUIDE DE REPRISE DU SITE ÉQUIPE 400/4H
 =================================================================
 Document établi le 6 octobre 2026.
-Mise à jour fonctionnelle : 17 octobre 2026 — alignement à gauche et élan tactile Excel.
+Mise à jour fonctionnelle : 17 octobre 2026 — choix V1/V2 dans les chronos de séance.
 Projet : portail privé de l’équipe d’athlétisme 400 m / 400 m haies du PUC.
 Responsable initiale : Maylis Chancerelle.
 Dépôt : https://github.com/MaylisCh/equipe-athle.git
 Branche de travail observée : main.
-Dernier commit observé avant cette évolution : be90ee1 — cadrage des aperçus
-Excel et zoom par gestes, après 2c5502f (fichiers muscu et recherches).
-Les évolutions de la section 25 sont des changements supplémentaires, vérifiés
+Dernier commit observé avant cette évolution : 85fb628 — alignement à gauche
+et élan tactile Excel, après be90ee1 (zoom par gestes).
+Les évolutions de la section 26 sont des changements supplémentaires, vérifiés
 localement ; leur commit ne constitue pas une confirmation de déploiement.
 Historique : 61334f1 (codes d’accès) après 1b5b095 (import initial détaillé).
 
@@ -1305,8 +1305,8 @@ anciennes des volets de séance et de la flèche circulaire du carnet.
 - Conserver la saisie rapide 25.8 / 48.2 / 24.4 / 25. La section repliable
   Distances (facultatif) affiche une ligne par répétition avec son chrono et
   une case de distance. La séance elle-même n’est plus dans un volet repliable.
-- Le champ Même distance pour toutes (m) et le bouton Appliquer permettent de
-  renseigner toutes les lignes en une fois, puis de corriger certaines lignes.
+- Le champ Même distance pour toutes (m) et le bouton Appliquer ont été retirés
+  à la demande de l’utilisatrice (section 26). Conserver les distances par chrono.
 - Une distance est un nombre strictement positif, au plus égal à 100 000 m.
   Les distances décimales sont acceptées ; une case vide devient null.
 - Chronos et distances sont associés dans l’ordre des répétitions, pas déduits
@@ -1600,5 +1600,60 @@ anciennes des volets de séance et de la flèche circulaire du carnet.
 - Tests sur fichiers générés et bases temporaires uniquement : aucun original
   Excel/Word ni aucune donnée en production n’est modifié.
 - Commit local automatique, sans push automatique.
+
+26. CHRONOS DE SÉANCE : CHOIX DE LA VERSION RÉALISÉE
+-------------------------------------------------
+26.1 Interface
+- Retrait du champ de distance commune et du bouton Appliquer.
+- Maintien de la section facultative des distances individuelles par répétition,
+  ainsi que de toutes les distances et de tous les chronos déjà enregistrés.
+- Juste au-dessus de Mes chronos : cases V1 et, uniquement si le texte v2 de la
+  séance n’est pas vide, V2. V1 est sélectionnée par défaut pour une nouvelle saisie.
+- Cases présentées comme petits encadrés sélectionnables ; groupe radio natif
+  obligatoire et exclusif, accessible au clavier. Une case est toujours cochée.
+  Cliquer le choix déjà actif ne le décoche pas.
+- Sans V2, une seule case V1 est cochée ; aucun choix V2 factice.
+- À la réouverture, le choix enregistré est restauré si la V2 existe toujours.
+  Si le coach a retiré la V2, la correction propose uniquement V1 ; l’ancien
+  résultat reste V2 jusqu’à son enregistrement explicite par son auteur.
+- Un repère V1/V2 apparaît sous le nom dans les tableaux de résultats, personnels
+  et coach. La correction de la version s’enregistre avec les chronos.
+- Coach et admin avec fonctions coach saisissent leur propre version sans agir
+  sur celle des athlètes. Confidentialité du carnet inchangée.
+
+26.2 Données et architecture
+- Table additive session_result_variants(session_id, user_id, session_variant),
+  clé primaire séance/membre, CHECK session_variant IN (1,2).
+- Aucun remplacement de table ni réinitialisation de la base existante.
+- API /state : sessionResults[].sessionVariant ; absence d’ancienne donnée
+  interprétée comme V1 à la lecture sans réécriture du résultat.
+- PUT /api/sessions/:id/times : sessionVariant numérique 1 ou 2.
+- Ne pas confondre sessionVariant avec version : version reste le compteur
+  de concurrence des résultats, pas le choix V1/V2 !
+- Choix invalide refusé côté serveur. Demande explicite V2 refusée si la séance
+  n’a pas de V2. Ancien client omettant sessionVariant : choix existant conservé,
+  sinon V1 par défaut. Une valeur null explicite est refusée.
+- Variante, distances et chronos sont écrits dans une même transaction D1,
+  avec la même garde de version avant mutation du résultat principal.
+- Un conflit ne modifie ni la variante ni les distances de l’autre enregistrement.
+- Suppression des chronos : suppression de la variante associée. Suppression
+  d’un compte, par son auteur ou par admin : nettoyage de ses variantes.
+- session-results.mjs : schéma, lecture et sauvegarde communs local/Cloudflare.
+  community.mjs et server.mjs : nettoyage des données à la suppression de compte.
+- app.js et community.css : formulaire exclusif et repère dans les tableaux.
+- Cache statique v20 pour le déploiement du nouveau formulaire.
+
+26.3 Vérifications
+- npm test : compatibilité anciens résultats, choix par défaut, validation,
+  sauvegarde/modification V1/V2, persistance après initialisation, isolation des
+  membres, conflit sans altération et nettoyage à la suppression.
+- test:results-browser : deux choix si V2 présente, un seul sinon, V1 cochée
+  initialement, exclusivité, choix restauré, affichage des résultats et maintien
+  des distances par répétition. Champ de distance commune absent.
+- Parcours généraux et aperçu Excel testés séparément pour non-régression ;
+  build et cohérence des deux copies de context.txt contrôlés.
+- Tests sur bases temporaires uniquement ; aucune donnée du site ni aucun
+  document Word/Excel original modifié. Migration additive au déploiement normal.
+- Commit local automatique ; l’utilisatrice effectue Push origin.
 
 FIN DU CONTEXTE

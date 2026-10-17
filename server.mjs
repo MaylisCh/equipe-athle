@@ -278,7 +278,7 @@ async function handle(req,res) {
     const member=db.prepare('SELECT role FROM users WHERE id=?').get(ctx.id);
     if(member.role==='admin' && db.prepare("SELECT COUNT(*) AS count FROM users WHERE role='admin'").get().count<=1)fail('Nommez un autre administrateur avant de supprimer votre profil.',409);
     db.prepare('DELETE FROM auth WHERE user_id=?').run(ctx.id);
-    for(const table of ['account_credentials','session_comments','competition_signups','account_created','session_results','session_result_distances','admin_coach_access'])db.prepare(`DELETE FROM ${table} WHERE user_id=?`).run(ctx.id);
+    for(const table of ['account_credentials','session_comments','competition_signups','account_created','session_results','session_result_distances','session_result_variants','admin_coach_access'])db.prepare(`DELETE FROM ${table} WHERE user_id=?`).run(ctx.id);
     db.prepare('DELETE FROM users WHERE id=?').run(ctx.id);bump();
    });reply({ok:true});return;
   }
