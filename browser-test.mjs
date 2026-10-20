@@ -33,6 +33,7 @@ try {
  await expect(admin.locator('#daily-sessions')).toBeVisible();await expect(admin.getByRole('button',{name:'+ Séance',exact:true})).toHaveCount(0);
  await expect(admin.locator('#main')).not.toContainText('S1–S27 viennent de l’Excel');
  await expect(admin.locator('#navigation')).not.toContainText('Saison hivernale');
+ await admin.locator('.calendar-day[data-date="2026-10-04"]').click();await expect(admin.locator('#daily-sessions h2')).toHaveText('Repos');await expect(admin.locator('#daily-sessions')).not.toContainText('pas encore été renseigné');await expect(admin.locator('.calendar-day[data-date="2026-10-04"]')).toHaveAttribute('aria-label',/Repos/);await admin.getByRole('button',{name:'Aujourd’hui',exact:true}).click();
  const coach=await newPage();await coach.goto(origin+'/#inscription');await coach.locator('[name=coach]').check();
  await coach.locator('[name=groupCode]').fill('NOUVEAU');await coach.locator('[name=coachCode]').fill('COACH');await coach.locator('[name=password]').fill('coach');
  await coach.locator('[name=name]').fill('Coach Test');await coach.locator('[name=lastName]').fill('Club');await coach.locator('[name=email]').fill('coach-test');await coach.getByRole('button',{name:'Créer mon compte'}).click();await expect(coach.getByRole('button',{name:'+ Séance',exact:true})).toBeVisible();

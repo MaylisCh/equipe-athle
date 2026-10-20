@@ -1,14 +1,14 @@
 CONTEXT — CAHIER DES CHARGES ET GUIDE DE REPRISE DU SITE ÉQUIPE 400/4H
 =================================================================
 Document établi le 6 octobre 2026.
-Mise à jour fonctionnelle : 20 octobre 2026 — suggestions de distances des chronos de séance.
+Mise à jour fonctionnelle : 20 octobre 2026 — jours sans séance affichés comme Repos.
 Projet : portail privé de l’équipe d’athlétisme 400 m / 400 m haies du PUC.
 Responsable initiale : Maylis Chancerelle.
 Dépôt : https://github.com/MaylisCh/equipe-athle.git
 Branche de travail observée : main.
-Dernier commit observé avant cette évolution : 3f4390d — choix V1/V2 des chronos,
-après 85fb628 (alignement et élan tactile Excel).
-Les évolutions de la section 27 sont des changements supplémentaires, vérifiés
+Dernier commit observé avant cette évolution : 6228393 — suggestions des distances,
+après 3f4390d (choix V1/V2 des chronos de séance).
+Les évolutions de la section 28 sont des changements supplémentaires, vérifiés
 localement ; leur commit ne constitue pas une confirmation de déploiement.
 Historique : 61334f1 (codes d’accès) après 1b5b095 (import initial détaillé).
 
@@ -1736,5 +1736,20 @@ anciennes des volets de séance et de la flèche circulaire du carnet.
   sur bases temporaires. npm run build et copies de context.txt vérifiés.
 - Les fichiers Word/Excel d’origine et les données en ligne ne sont pas modifiés.
 - Commit local automatique, sans push ; l’utilisatrice effectue Push origin.
+
+28. JOURNÉES SANS SÉANCE : LIBELLÉ REPOS
+--------------------------------------
+- Dans le planning principal, toute journée sans séance affiche simplement
+  « Repos », au lieu du titre « Aucune séance renseignée » et de la phrase
+  « Le planning de cette journée n’a pas encore été renseigné. ».
+- Le libellé accessible des cases vides du calendrier utilise également Repos.
+- Changement d’affichage uniquement : ne créer aucune séance fictive de type
+  repos dans la base. Le coach peut toujours ajouter une ou plusieurs séances
+  à ces dates ; les compétitions existantes restent affichées séparément.
+- Les séances et les contenus existants sont inchangés. Aucun changement d’API
+  ou de données en production. Cache statique v22.
+- browser-test.mjs vérifie un jour vide, le titre Repos et le libellé accessible.
+- Mise à jour du contexte dans les deux dossiers ; commit local automatique,
+  sans push automatique.
 
 FIN DU CONTEXTE
