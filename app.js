@@ -2,6 +2,7 @@ import { distances, types, parseTime, trainingTarget, equivalentIntensity, sessi
 import { seasonStart, seasonWeekCount, seasonWeekDate, seasonWeekForDate, defaultSeason } from './season.mjs';
 import { difficultyLabels, competitionLevels, mondayOf, addDays, isoWeekValue, dateFromWeek, publicDifficulty } from './community-core.mjs';
 import {parseSessionTimes,normalizeSessionDistances} from './session-results-core.mjs';
+import {suggestSessionDistances,updateDistanceDraft} from './distance-suggestions.mjs';
 import {openWorkbookViewer,closeWorkbookViewer} from './workbook-viewer.mjs';
 import {memberMatches} from './search-core.mjs';
 import { parseTrainingFile, nextWeekStartParis } from './session-upload.mjs';
@@ -266,6 +267,7 @@ function editSessionTimes(id) {
  const mine=(state.sessionResults||[]).find(r=>r.sessionId===id&&r.userId===user.id),editable=!session.archived||!!mine;
  const text=mine?mine.times.map(t=>String(t)).join(' / '):'';
  const draftDistances=[...(mine?.distances||[])];
+ const lockedDistances=new Set((mine?.times||[]).map((_,i)=>i));
  const hasV2=!!session.v2?.trim(),chosenVariant=hasV2&&mine?.sessionVariant===2?2:1;
  const variantChoices=`<fieldset class="times-variant-choice"><legend>Version réalisée</legend>${(hasV2?[1,2]:[1]).map(v=>`<label><input type="radio" name="sessionVariant" value="${v}" ${chosenVariant===v?'checked':''} required><span>V${v}</span></label>`).join('')}</fieldset>`;
  modal(mine?'Mes chronos de séance':'Ajouter mes chronos',`<div class="times-modal-heading type-${esc(session.type)}"><span class="pill type-badge">${esc(types[session.type]||'Séance')}</span><h3>${esc(session.title)}</h3><p class="muted">${esc(fullDate(session.date))}${sessionSlot(session)?' · '+esc(sessionSlot(session)):''}</p></div><div class="times-workout"><p class="prose">${esc(session.workout||'Séance non renseignée.')}</p>${session.v2?`<aside class="variant"><h4>Version 2</h4><p class="prose">${esc(session.v2)}</p></aside>`:''}${!session.archived?'<a href="#entrainements">Voir au planning ↗</a>':''}</div>${editable?`${variantChoices}<label class="times-entry-label">Mes chronos<textarea name="rawText" rows="3" maxlength="4000" placeholder="25.8 / 48.2 / 24.4 / 25" required>${esc(text)}</textarea></label><div id="times-preview" aria-live="polite"></div><details class="times-distances" id="times-distances" ${mine?.distances?.some(d=>d!==null)?'open':''}><summary>Distances (facultatif)</summary><div id="times-distance-rows"></div></details>${mine?'<button type="button" class="text-button danger-button" id="delete-session-times">Supprimer mes chronos</button>':''}`:'<p class="muted">Séance archivée : aucune nouvelle saisie possible.</p>'}${coach()?`<section class="times-modal-group"><h3>Résultats du groupe</h3>${timesRows(id)}</section>`:''}`,async form=>{
@@ -277,11 +279,14 @@ function editSessionTimes(id) {
  else {
   const preview=(redraw=true)=>{try{
    const times=form.elements.rawText.value.trim()?parseSessionTimes(form.elements.rawText.value):[];
+   const suggestions=suggestSessionDistances(session,times,state.profile.times,Number(form.elements.sessionVariant.value));
+   updateDistanceDraft(draftDistances,suggestions,lockedDistances);
    const distances=normalizeSessionDistances(times.map((_,i)=>draftDistances[i]??null),times.length);
    $('#times-preview').innerHTML=timeChips(times,distances);$('#editor-error').textContent='';
-   if(redraw)$('#times-distance-rows').innerHTML=times.length?`<div class="times-distance-grid times-distance-head"><span>Rép.</span><span>Chrono</span><span>Distance (m)</span></div>${times.map((t,i)=>`<label class="times-distance-grid"><span>${i+1}</span><strong>${esc(formatTime(t))}</strong><input type="number" step="any" min="0" max="100000" inputmode="decimal" data-distance-index="${i}" aria-label="Distance répétition ${i+1} en mètres" value="${distances[i]??''}" placeholder="—"></label>`).join('')}`:'<p class="muted">Saisissez vos chronos pour ajouter les distances.</p>';
+   if(redraw)$('#times-distance-rows').innerHTML=times.length?`<p class="times-suggestion-help">Les distances suggérées restent à vérifier. Modifiez-les ou laissez-les vides si besoin.</p><div class="times-distance-grid times-distance-head"><span>Rép.</span><span>Chrono</span><span>Distance (m)</span></div>${times.map((t,i)=>`<label class="times-distance-grid"><span>${i+1}</span><strong>${esc(formatTime(t))}</strong><span class="times-distance-field"><input type="number" step="any" min="0" max="100000" inputmode="decimal" data-distance-index="${i}" aria-label="Distance répétition ${i+1} en mètres" value="${distances[i]??''}" placeholder="—">${!lockedDistances.has(i)&&suggestions[i]?`<small class="distance-suggested" title="${esc(suggestions[i].source)}">Suggérée</small>`:''}</span></label>`).join('')}`:'<p class="muted">Saisissez vos chronos pour ajouter les distances.</p>';
   }catch(e){$('#times-preview').innerHTML='';$('#editor-error').textContent=e.message;}};
-  $('#times-distance-rows').oninput=event=>{const input=event.target;if(input.dataset.distanceIndex===undefined)return;draftDistances[Number(input.dataset.distanceIndex)]=input.value===''?null:Number(input.value);preview(false);};
+  $('#times-distance-rows').oninput=event=>{const input=event.target;if(input.dataset.distanceIndex===undefined)return;const index=Number(input.dataset.distanceIndex);lockedDistances.add(index);draftDistances[index]=input.value===''?null:Number(input.value);input.parentElement.querySelector('.distance-suggested')?.remove();preview(false);};
+  for(const radio of form.querySelectorAll('[name=sessionVariant]'))radio.onchange=()=>preview();
   form.elements.rawText.oninput=()=>preview();preview();form.elements.rawText.focus();
  }
  if(mine)$('#delete-session-times').onclick=async()=>{if(!confirm('Supprimer uniquement vos chronos de cette séance ?'))return;try{await api('/sessions/'+encodeURIComponent(id)+'/times','DELETE',{version:mine.version});$('#editor').close();state=await api('/state');render();toast('Vos chronos de séance ont été supprimés.');}catch(e){$('#editor-error').textContent=e.message;}};

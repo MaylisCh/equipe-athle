@@ -1,14 +1,14 @@
 CONTEXT — CAHIER DES CHARGES ET GUIDE DE REPRISE DU SITE ÉQUIPE 400/4H
 =================================================================
 Document établi le 6 octobre 2026.
-Mise à jour fonctionnelle : 17 octobre 2026 — choix V1/V2 dans les chronos de séance.
+Mise à jour fonctionnelle : 20 octobre 2026 — suggestions de distances des chronos de séance.
 Projet : portail privé de l’équipe d’athlétisme 400 m / 400 m haies du PUC.
 Responsable initiale : Maylis Chancerelle.
 Dépôt : https://github.com/MaylisCh/equipe-athle.git
 Branche de travail observée : main.
-Dernier commit observé avant cette évolution : 85fb628 — alignement à gauche
-et élan tactile Excel, après be90ee1 (zoom par gestes).
-Les évolutions de la section 26 sont des changements supplémentaires, vérifiés
+Dernier commit observé avant cette évolution : 3f4390d — choix V1/V2 des chronos,
+après 85fb628 (alignement et élan tactile Excel).
+Les évolutions de la section 27 sont des changements supplémentaires, vérifiés
 localement ; leur commit ne constitue pas une confirmation de déploiement.
 Historique : 61334f1 (codes d’accès) après 1b5b095 (import initial détaillé).
 
@@ -1309,9 +1309,9 @@ anciennes des volets de séance et de la flèche circulaire du carnet.
   à la demande de l’utilisatrice (section 26). Conserver les distances par chrono.
 - Une distance est un nombre strictement positif, au plus égal à 100 000 m.
   Les distances décimales sont acceptées ; une case vide devient null.
-- Chronos et distances sont associés dans l’ordre des répétitions, pas déduits
-  automatiquement du texte de la séance. Lors d’une modification du nombre ou
-  de l’ordre des chronos, vérifier que chaque distance correspond encore au bon.
+- Chronos et distances sont associés dans l’ordre des répétitions. La section 27
+  ajoute des suggestions selon la séance et les références personnelles.
+  Si le nombre ou l’ordre des chronos change, vérifier encore chaque distance.
 - Le récapitulatif affiche un couple compact par répétition : 200 m · 25,80 s.
   Sans distance, afficher uniquement le chrono avec son repère de répétition,
   sans mention répétée « distance non renseignée ».
@@ -1655,5 +1655,86 @@ anciennes des volets de séance et de la flèche circulaire du carnet.
 - Tests sur bases temporaires uniquement ; aucune donnée du site ni aucun
   document Word/Excel original modifié. Migration additive au déploiement normal.
 - Commit local automatique ; l’utilisatrice effectue Push origin.
+
+27. CHRONOS DE SÉANCE : DISTANCES PROPOSÉES AUTOMATIQUEMENT
+--------------------------------------------------------
+27.1 Demande et présentation
+- Après saisie de nouveaux chronos, préremplir les distances probables dans les
+  champs existants, avec une mention Suggérée et une infobulle sur la source.
+- Fonctionne même si le coach n’a renseigné aucun temps cible ni pourcentage.
+- Les consignes de la V1 ou V2 choisie et les références personnelles dans Allures
+  sont les données utilisées ; jamais les performances d’un autre membre.
+- Aucun nouvel encart ou champ de distance commune. La section facultative
+  actuelle reste repliable ; les couples suggérés sont repris dans l’aperçu.
+- L’utilisateur peut corriger ou effacer chaque proposition. Une information
+  insuffisante ou une ambiguïté forte donne un champ vide, jamais une certitude.
+- La validation enregistre ces distances comme les distances saisies à la main.
+  Avant validation, aucun enregistrement automatique ni appel API supplémentaire.
+
+27.2 Priorités et calcul
+- Module pur distance-suggestions.mjs, utilisant predictReference de core.mjs :
+  réutilise la courbe personnelle avec fatigue, pas une règle de trois brute.
+- Lire le texte workout pour V1 et exclusivement v2 pour V2. Ne pas lire
+  l’échauffement, les notes du coach ou les temps des autres membres.
+- Reconnaître les notations courantes : 3×200, 3*200m, 3x200m,
+  (2×250 + 2×200), 2*(200+150), 3*3*100m, 300-150-150 / 200-200.
+- Conserver l’ordre des séries reconnues ; si assez de répétitions sont décrites,
+  utiliser la distance de la répétition correspondante en priorité sur le chrono.
+- Si une seule distance est indiquée, la proposer même sans référence personnelle,
+  sans temps cible et même si le nombre de chronos diffère du nombre prévu.
+- Le mot « ou » désactive l’ordre automatique entre alternatives. Une distance
+  commune aux alternatives reste utilisable, sinon comparer aux références.
+- Ignorer les durées en secondes/minutes, récupérations, pourcentages, totaux
+  isolés entre parenthèses, lignes de relais/transmission et espacements de lattes.
+- Limites de lecture : distances de 30 à 1 500 m, 200 répétitions, profondeur
+  maximale de 6 niveaux de groupes. Le texte libre reste une interprétation
+  partielle ; les formulations complexes ne sont pas garanties.
+- À défaut de distances dans le texte, utiliser les distances des cibles
+  structurées de V1. Ne jamais transférer automatiquement les cibles V1 en V2.
+- À défaut des deux, tester les distances d’Allures plus 120 m, sur 50–1 500 m.
+- Comparer chaque chrono au temps prédit : référence personnelle / pourcentage.
+  Priorité au pourcentage de la cible, sinon au pourcentage unique dans le texte.
+  Les plages fixes de temps structurées peuvent être exploitées sans chrono perso.
+- Sans allure explicite : hypothèse de 92 % en vitesse, 85 % en côtes, 80 % en
+  endurance, 70 % en VO2, 100 % en compétition, 85 % sinon. Ces valeurs sont des
+  paramètres heuristiques d’identification, PAS des consignes du coach ni des
+  recommandations d’intensité. L’infobulle indique estimation à vérifier.
+- Classement par écart absolu logarithmique entre chrono et temps attendu.
+  Écarter si meilleur écart supérieur à ln(1,35), ou si les deux premiers écarts
+  diffèrent de moins de 0,06. Ne rien proposer sans référence exploitable,
+  sauf distance explicite ou cible fixe permettant de conclure.
+
+27.3 Préservation des données et corrections
+- Tous les indices d’un résultat existant sont verrouillés à la réouverture,
+  y compris les distances vides : impossible de distinguer rétroactivement une
+  absence volontaire d’une case ancienne non renseignée. Ne jamais les réécrire.
+- Une correction manuelle ou un effacement verrouille la répétition pendant
+  cette ouverture, même en changeant la V1/V2 ou les chronos.
+- Les suggestions non touchées se recalculent quand les chronos ou la version
+  changent. Les répétitions nouvellement ajoutées peuvent recevoir une proposition.
+- Les valeurs restent associées par indice de répétition : après réorganisation,
+  il appartient au membre de vérifier que les distances suivent les bons chronos.
+- Aucun changement de schéma, aucune migration et aucun remplissage automatique
+  de la base en production. La sauvegarde utilise le contrôle de concurrence,
+  les droits personnels et le champ distances déjà en place.
+
+27.4 Fichiers, tests et publication
+- distance-suggestions.mjs : lecture limitée des consignes, classement et gestion
+  du brouillon préservant les valeurs verrouillées.
+- app.js : suggestions lors de la saisie, étiquette et adaptation au choix V1/V2.
+- community.css : étiquette Suggérée et aide discrète.
+- build.mjs, liste statique locale de server.mjs et service-worker.js incluent
+  le module ; cache statique v21 pour éviter un formulaire ancien.
+- session-results-test.mjs : tests de séries, version choisie, absence de temps
+  cible, modèle avec une seule référence, références différentes par membre,
+  cibles fixes, ambiguïtés et conservation des corrections/valeurs enregistrées.
+- test:results-browser : suggestion de 200 m sans cible ni chrono personnel
+  quand la consigne donne 200 m ; passage à 150 m en V2 ; corrections et cases
+  vidées préservées ; sans distance dans la séance, référence 200 m = 24 s
+  permettant de proposer 200 m pour 26 s et 250 m pour 35 s ; sauvegarde/réouverture.
+- npm test : 21 tests ; parcours généraux, chronos et documents Excel contrôlés
+  sur bases temporaires. npm run build et copies de context.txt vérifiés.
+- Les fichiers Word/Excel d’origine et les données en ligne ne sont pas modifiés.
+- Commit local automatique, sans push ; l’utilisatrice effectue Push origin.
 
 FIN DU CONTEXTE

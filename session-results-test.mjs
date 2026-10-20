@@ -4,6 +4,44 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {sqliteD1} from './sqlite-d1.mjs';
 import {parseSessionTimes,normalizeSessionDistances} from './session-results-core.mjs';
+import {sessionDistancePlan,suggestSessionDistances,updateDistanceDraft} from './distance-suggestions.mjs';
+
+test('Distances suggérées : consignes sans cible, séries mixtes et version choisie',()=>{
+ const distances=(session,times,refs={},variant=1)=>suggestSessionDistances(session,times,refs,variant).map(s=>s?.distance??null);
+ assert.deepEqual(sessionDistancePlan('(2×250 + 2×200) 80 %, r 1′30, R 6′\n(800)').sequence,[250,250,200,200]);
+ assert.deepEqual(sessionDistancePlan('300-150-150 / 200-200 80% r1\'30').sequence,[300,150,150,200,200]);
+ assert.deepEqual(sessionDistancePlan('2*(200+150)').sequence,[200,150,200,150]);
+ assert.deepEqual(sessionDistancePlan('3*3*100m').sequence,Array(9).fill(100));
+ assert.deepEqual(sessionDistancePlan('6*30"/30" R4\' (720)\nTravail latte 2m').candidates,[]);
+ assert.deepEqual(distances({workout:'3 × 200 m'},[28,30,42]),[200,200,200],'No pace or personal reference is required when the coach gives a distance');
+ assert.deepEqual(distances({workout:'200+300',v2:'2 × 150m'},[20,21],{},2),[150,150]);
+ assert.deepEqual(distances({workout:'200 m ou 400 m'},[25],{200:24,400:54}),[200]);
+ assert.deepEqual(distances({workout:'200 m ou 400 m'},[25]),[null],'Unordered alternatives require evidence');
+ assert.deepEqual(distances({workout:'10*125m ou 2*5*125m'},[20,23]),[125,125]);
+});
+
+test('Distances suggérées : modèle personnel sans temps coach, cibles et prudence',()=>{
+ const refs={100:12,200:24,400:54},session={type:'speed',workout:''};
+ assert.equal(suggestSessionDistances(session,[26],refs)[0].distance,200);
+ assert.equal(suggestSessionDistances(session,[35],refs)[0].distance,250);
+ assert.equal(suggestSessionDistances(session,[55],refs)[0].distance,400);
+ assert.equal(suggestSessionDistances(session,[26],{200:24})[0].distance,200,'A single reference can drive the fatigue model');
+ assert.equal(suggestSessionDistances(session,[26],{200:30})[0].distance,150,'Suggestions use this member’s own references, not a group average');
+ assert.deepEqual(suggestSessionDistances(session,[12],refs),[null],'Close candidates are not presented as reliable');
+ assert.deepEqual(suggestSessionDistances(session,[26]),[null]);
+ assert.deepEqual(suggestSessionDistances(session,[5000],refs),[null]);
+ const ranges={workout:'',targets:[{distance:200,kind:'range',minTime:28,maxTime:30},{distance:400,kind:'range',minTime:65,maxTime:70}]};
+ assert.equal(suggestSessionDistances(ranges,[29])[0].distance,200,'Fixed coach targets can be matched even without a personal PB');
+ assert.deepEqual(suggestSessionDistances({...ranges,v2:'Séance différente'},[29],{},2),[null],'V1 targets must not leak into V2');
+});
+
+test('Distances suggérées : ne jamais écraser une valeur enregistrée ou corrigée',()=>{
+ const draft=[400,null,null],locked=new Set([0,1]),suggestions=[{distance:200},{distance:200},{distance:150}];
+ assert.deepEqual(updateDistanceDraft(draft,suggestions,locked),[400,null,150]);
+ assert.deepEqual(updateDistanceDraft(draft,[null,null,{distance:250}],locked),[400,null,250]);
+ locked.add(2);draft[2]=null;
+ assert.deepEqual(updateDistanceDraft(draft,suggestions,locked),[400,null,null]);
+});
 
 test('Chronos séance : décimales, séparateurs, minutes et saisies invalides',()=>{
  assert.deepEqual(parseSessionTimes('25,4 - 25.8 / 26 / 1:02,5 - 27'),[25.4,25.8,26,62.5,27]);

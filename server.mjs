@@ -162,7 +162,7 @@ async function bodyJSON(req,limit=128*1024) {
  try {const value=JSON.parse(Buffer.concat(chunks).toString()||'{}');if(!value||Array.isArray(value)||typeof value!=='object')fail('JSON invalide.');return value;}catch(e){if(e.status)throw e;fail('JSON invalide.');}
 }
 const allowedStatic = new Map([
- ['/excel-preview.mjs',['excel-preview.mjs','text/javascript']],['/workbook-viewer.mjs',['workbook-viewer.mjs','text/javascript']],['/search-core.mjs',['search-core.mjs','text/javascript']],['/workbook.css',['workbook.css','text/css']],
+ ['/excel-preview.mjs',['excel-preview.mjs','text/javascript']],['/workbook-viewer.mjs',['workbook-viewer.mjs','text/javascript']],['/search-core.mjs',['search-core.mjs','text/javascript']],['/workbook.css',['workbook.css','text/css']],['/distance-suggestions.mjs',['distance-suggestions.mjs','text/javascript']],
  ['/', ['index.html','text/html']], ['/index.html',['index.html','text/html']],
  ['/community-core.mjs',['community-core.mjs','text/javascript']],
  ['/session-results-core.mjs',['session-results-core.mjs','text/javascript']],
