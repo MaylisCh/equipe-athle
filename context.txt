@@ -1752,4 +1752,22 @@ anciennes des volets de séance et de la flèche circulaire du carnet.
 - Mise à jour du contexte dans les deux dossiers ; commit local automatique,
   sans push automatique.
 
+29. CIBLES COACH : TEMPS MODIFIABLES SANS RESSAISIE
+-------------------------------------------------
+- Correction du formulaire des plages fixes : le texte prérempli utilise une
+  notation que le parseur accepte, sans suffixe « s » à retirer manuellement.
+- Affichage et édition : 25"50 = 25,50 secondes ; 1'30" = 90 secondes ;
+  1'02"50 = 62,50 secondes. Les minutes et centièmes restent distincts.
+- Saisie des formats historiques 25,50 et 1:30 toujours acceptée ; ajout des
+  apostrophes/guillemets droits et typographiques pour minutes et secondes.
+- Clavier texte pour les bornes coach afin de permettre les signes sur téléphone.
+- Aucun changement de base, migration ou modification des durées enregistrées.
+- Cache statique v23. Tests unitaires de conversion et aller-retour ajoutés ;
+  parcours navigateur étendu à la sauvegarde sans ressaisie et à la modification
+  des bornes en secondes avec centièmes.
+- Vérification : 20 tests réussis dont les conversions et API Pages ; 2 tests
+  serveur local et le parcours navigateur bloqués dans cet environnement par
+  EPERM sur les ports locaux. Build et contrôle du diff réussis.
+- Commit local, sans push automatique.
+
 FIN DU CONTEXTE

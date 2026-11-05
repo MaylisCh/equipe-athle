@@ -6,13 +6,21 @@ export const types = {
  endurance:'Endurance', hills:'Côtes', competition:'Compétition', group:'Collectif', rest:'Repos'
 };
 export function parseTime(input) {
- const value=String(input).trim().replace(',', '.');
+ const value=String(input).trim().replace(',', '.').replace(/[’′]/g, "'").replace(/[“”″]/g, '"');
  if(!value)return null;
  let result;
  if(/^\d+(?:\.\d{1,3})?$/.test(value)) result=Number(value);
  else if(/^\d+:[0-5]?\d(?:\.\d{1,3})?$/.test(value)) {
   const [minutes,seconds]=value.split(':').map(Number);result=minutes*60+seconds;
- } else throw new Error('Utilisez des secondes (54,32) ou minutes:secondes (1:02,50).');
+ } else {
+  const minutes=value.match(/^(\d+)'([0-5]?\d(?:\.\d{1,3})?)"?$/);
+  const preciseMinutes=value.match(/^(\d+)'([0-5]?\d)"(\d{1,3})$/);
+  const seconds=value.match(/^(\d+)"(\d{1,3})?$/);
+  if(preciseMinutes)result=Number(preciseMinutes[1])*60+Number(preciseMinutes[2])+Number('0.'+preciseMinutes[3]);
+  else if(minutes)result=Number(minutes[1])*60+Number(minutes[2]);
+  else if(seconds)result=Number(seconds[1])+Number('0.'+(seconds[2]||'0'));
+  else throw new Error('Utilisez des secondes (54,32 ou 54"32) ou minutes et secondes (1:30 ou 1\'30").');
+ }
  if(!Number.isFinite(result)||result<=0||result>86400)throw new Error('Le chrono doit être supérieur à zéro.');
  return result;
 }
@@ -69,6 +77,13 @@ export function formatTime(value) {
  if(value==null)return '—';
  const rounded=Math.round(value*100);
  return rounded<6000 ? (rounded/100).toFixed(2).replace('.',',')+' s' : `${Math.floor(rounded/6000)}:${((rounded%6000)/100).toFixed(2).padStart(5,'0').replace('.',',')}`;
+}
+// Même notation à l'affichage et dans les champs coach : toujours relisible.
+export function formatCoachTime(value) {
+ if(value==null)return '';
+ const rounded=Math.round(value*100),minutes=Math.floor(rounded/6000);
+ const seconds=Math.floor((rounded%6000)/100),hundredths=rounded%100;
+ return `${minutes?minutes+"'":''}${minutes?String(seconds).padStart(2,'0'):seconds}"${hundredths?String(hundredths).padStart(2,'0'):''}`;
 }
 export const dateKey = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 export const fromKey = key => new Date(`${key}T12:00:00`);

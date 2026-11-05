@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { once } from 'node:events';
-import { parseTime, targetTime, predictReference, trainingTarget, equivalentIntensity, weeklyLoadForDate, sessionLoad, formatTime } from './core.mjs';
+import { parseTime, targetTime, predictReference, trainingTarget, equivalentIntensity, weeklyLoadForDate, sessionLoad, formatTime, formatCoachTime } from './core.mjs';
 import { seasonWeekDate, seasonWeekForDate, generalPeriods, trainingPeriods, intensityPeriods, schoolHolidays, stages, competitions } from './season.mjs';
 
 test('Chronos : formats, pourcentages, bornes et arrondi minute',()=>{
@@ -14,6 +14,15 @@ test('Chronos : formats, pourcentages, bornes et arrondi minute',()=>{
  assert.equal(parseTime(''),null);assert.throws(()=>parseTime('0'));assert.throws(()=>parseTime('-8'));assert.throws(()=>parseTime('1:70'));
  assert.equal(targetTime(24,80),30);assert.equal(targetTime(54,90),60);assert.equal(targetTime(24,0),null);
  assert.equal(formatTime(59.999),'1:00,00');
+});
+
+test('Cibles coach : notation minutes, secondes et réédition sans perte',()=>{
+ for(const [text,seconds] of [[`1'30"`,90],[`1’30″`,90],[`25"50`,25.5],[`28"50`,28.5],[`1'02"50`,62.5],[`1'02,50"`,62.5],[`25"`,25]])assert.equal(parseTime(text),seconds);
+ for(const seconds of [0.01,25,25.5,28.5,59.99,60,62.5,90,86400])assert.equal(parseTime(formatCoachTime(seconds)),seconds);
+ assert.equal(formatCoachTime(25.5),'25"50');
+ assert.equal(formatCoachTime(90),`1'30"`);
+ assert.equal(formatCoachTime(59.999),`1'00"`);
+ for(const text of [`1'70"`,`25"s`,`1'30"50x`])assert.throws(()=>parseTime(text));
 });
 
 test('Courbe personnelle : chronos exacts, fatigue et tableaux corrigés du coach',()=>{
