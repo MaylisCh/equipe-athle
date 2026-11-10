@@ -24,6 +24,12 @@ const shortDate = key => fromKey(key).toLocaleDateString('fr-FR',{day:'numeric',
 const today = () => dateKey(new Date());
 let selectedDate=today(),month=fromKey(selectedDate); month.setDate(1);
 let user=null,accessToken=null,csrf=null,setup=false,pendingAccount=null,state=null,pollBusy=false,editSubmit=null,toastTimer,pendingRender=false,importPreview=null;
+// Le serveur reste seul juge de la validité et de l'expiration (12 heures).
+const sessionKey='equipe-athle-session';
+function saveSession(token) {
+ try {if(token)localStorage.setItem(sessionKey,token);else localStorage.removeItem(sessionKey);}catch{}
+}
+try {accessToken=localStorage.getItem(sessionKey)||null;}catch{}
 const coachSignupHint = new URLSearchParams(location.search).has('invitation');
 if(coachSignupHint)history.replaceState(null,'',location.pathname+'#inscription');
 const coach = () => user?.role==='coach'||(user?.role==='admin'&&!!user.coachEnabled);
@@ -34,10 +40,11 @@ const page = () => location.hash.slice(1) || 'entrainements';
 const options = (values,selected) => Object.entries(values).map(([v,t])=>`<option value="${esc(v)}" ${v===selected?'selected':''}>${esc(t)}</option>`).join('');
 function toast(message) {$('#toast').textContent=message;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4500);}
 async function api(path,method='GET',body) {
+ const requestToken=accessToken;
  const headers={};if(accessToken)headers.Authorization=`Bearer ${accessToken}`;
  if(method!=='GET'){headers['Content-Type']='application/json';if(csrf)headers['X-CSRF-Token']=csrf;}
  const response=await fetch('/api'+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});
- const value=await response.json();if(!response.ok)throw Object.assign(new Error(value.error||'Requête impossible.'),{status:response.status});return value;
+ const value=await response.json();if(response.status===401&&requestToken===accessToken)saveSession(null);if(!response.ok)throw Object.assign(new Error(value.error||'Requête impossible.'),{status:response.status});return value;
 }
 function header() {
  $('#navigation').hidden=!user;
@@ -59,7 +66,7 @@ function authPage() {
   event.preventDefault();const form=event.currentTarget,fields=new FormData(form),button=form.querySelector('button[type=submit]');button.disabled=true;$('#auth-error').textContent='';
   try {
    const result=await api(initial?'/setup':register?'/register':'/login','POST',{name:fields.get('name'),lastName:fields.get('lastName'),phone:fields.get('phone'),email:fields.get('email'),password:fields.get('password'),coach:fields.get('coach')==='on',groupCode:fields.get('groupCode'),coachCode:fields.get('coachCode')});
-   user=result.user;csrf=result.csrf;accessToken=result.accessToken;setup=false;state=await api('/state');user=state.user;history.replaceState(null,'',location.pathname+'#entrainements');render();
+   user=result.user;csrf=result.csrf;accessToken=result.accessToken;saveSession(accessToken);setup=false;state=await api('/state');user=state.user;history.replaceState(null,'',location.pathname+'#entrainements');render();
  } catch(e){$('#auth-error').textContent=e.message;}finally{button.disabled=false;}
  };
  if(register){
@@ -471,7 +478,7 @@ async function archive(collection,id) {
 function deleteAccount() {
  modal('Supprimer mon profil',`<p>Votre compte, vos coordonnées et vos chronos seront définitivement supprimés. Toutes vos sessions seront fermées.</p><p class="help">Le planning, les circuits et les informations partagées du groupe sont conservés.</p><label class="checkbox"><input type="checkbox" name="confirm" required> Êtes-vous sûr de vouloir supprimer ce compte ?</label>`,async form=>{
   await api('/account','DELETE',{identifier:user.email,confirm:form.elements.confirm.checked});
-  closeWorkbookViewer();user=null;state=null;accessToken=null;csrf=null;$('#editor').close();$('#connection').hidden=true;history.replaceState(null,'','#connexion');render();toast('Votre profil et vos chronos personnels ont été supprimés.');return false;
+  closeWorkbookViewer();user=null;state=null;accessToken=null;csrf=null;saveSession(null);$('#editor').close();$('#connection').hidden=true;history.replaceState(null,'','#connexion');render();toast('Votre profil et vos chronos personnels ont été supprimés.');return false;
  },'Supprimer définitivement mon profil');
 }
 $('#editor-form').onsubmit=async event=>{
@@ -535,7 +542,7 @@ document.addEventListener('click',async event=>{
   if(button.classList.contains('remove-target')){button.closest('.target-row').remove();return;}
   switch(button.dataset.action){
    case 'menu':$('#navigation').classList.toggle('mobile-open');button.setAttribute('aria-expanded',$('#navigation').classList.contains('mobile-open'));break;
-   case 'logout':await api('/logout','POST',{});closeWorkbookViewer();user=null;state=null;accessToken=null;csrf=null;$('#connection').hidden=true;history.replaceState(null,'','#connexion');render();break;
+   case 'logout':await api('/logout','POST',{});closeWorkbookViewer();user=null;state=null;accessToken=null;csrf=null;saveSession(null);$('#connection').hidden=true;history.replaceState(null,'','#connexion');render();break;
    case 'today':selectDate(today());break;
    case 'prev-week':{const dt=fromKey(selectedDate);dt.setDate(dt.getDate()-7);selectDate(dateKey(dt));break;}
    case 'next-week':{const dt=fromKey(selectedDate);dt.setDate(dt.getDate()+7);selectDate(dateKey(dt));break;}
@@ -568,9 +575,12 @@ async function refresh() {
   const next=await api('/state');if(accessToken!==refreshToken||!state)return;const changed=state.revision!==next.revision;state=next;user=next.user;$('#connection').hidden=true;
   pendingRender ||= changed;
   if(pendingRender&&!$('#editor').open&&!['chronos','reglages','chrono-seance'].includes(page())&&!['library-search','member-search'].includes(document.activeElement?.id)){render();toast('Le contenu du groupe a été mis à jour.');}
- }catch(e){if(e.status===401){closeWorkbookViewer();user=null;state=null;accessToken=null;csrf=null;$('#editor').close();render();toast('Votre session a expiré. Reconnectez-vous.');}else{$('#connection').hidden=false;$('#connection').textContent='Connexion interrompue. Dernier planning chargé affiché ; nouvelles modifications en attente de connexion.';}}
+ }catch(e){if(e.status===401){closeWorkbookViewer();user=null;state=null;accessToken=null;csrf=null;saveSession(null);$('#editor').close();render();toast('Votre session a expiré. Reconnectez-vous.');}else{$('#connection').hidden=false;$('#connection').textContent='Connexion interrompue. Dernier planning chargé affiché ; nouvelles modifications en attente de connexion.';}}
  finally{pollBusy=false;}
 }
 setInterval(refresh,60000);document.addEventListener('visibilitychange',refresh);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
-try{const auth=await api('/auth');setup=auth.setup;pendingAccount=auth.pending;render();}catch(e){$('#main').innerHTML=`<section class="card"><h1>Le site n’est pas démarré.</h1><p>Lancez « Démarrer le site.command », puis ouvrez <a href="http://localhost:8787">localhost:8787</a>.</p><p class="error">${esc(e.message)}</p></section>`;}
+try{const auth=await api('/auth');setup=auth.setup;pendingAccount=auth.pending;
+ if(auth.user){user=auth.user;csrf=auth.csrf;state=await api('/state');user=state.user;if(['connexion','inscription','initialisation'].includes(page()))history.replaceState(null,'',location.pathname+'#entrainements');}
+ else{accessToken=null;csrf=null;saveSession(null);}
+ render();}catch(e){$('#main').innerHTML=`<section class="card"><h1>Le site n’est pas démarré.</h1><p>Lancez « Démarrer le site.command », puis ouvrez <a href="http://localhost:8787">localhost:8787</a>.</p><p class="error">${esc(e.message)}</p></section>`;}

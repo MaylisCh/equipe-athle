@@ -11,7 +11,7 @@ Il faut maintenant utiliser l’adresse du serveur, et non ouvrir `index.html` p
 
 ## Comptes et données personnelles
 
-- Chaque ouverture ou rechargement de la page demande une connexion par identifiant et mot de passe. La navigation interne garde la session active.
+- La connexion reste active pendant 12 heures après identification, y compris après un rechargement, un changement d’onglet ou une réouverture dans le même navigateur. Déconnexion permet de terminer la session immédiatement.
 - Identifiants et mots de passe respectent les majuscules et minuscules. Les identifiants déjà enregistrés restent tels quels. Pour les comptes créés avant cette évolution, le mot de passe provisoire est l’identifiant au moment de la migration ; il se change dans **Réglages → Mon mot de passe**. Un changement ultérieur d’identifiant ne change pas le mot de passe.
 - Le mot de passe est obligatoire mais n’a pas de minimum de longueur ou de règle de complexité. Les mots de passe personnels sont stockés avec sel et dérivation PBKDF2, jamais renvoyés aux autres comptes.
 - Un compte coach possède ses propres références d’allure, exactement comme un athlète. Les références personnelles ne sont pas partagées. Les chronos de séance, distincts de ces références, sont visibles par leur auteur et les coachs ; chacun ne peut modifier que ses propres saisies.
@@ -166,7 +166,7 @@ Les fichiers exposés sur le site sont construits dans `dist/`. La base, les sou
 
 `npm run test:browser` vérifie les parcours dans Chromium avec trois comptes temporaires, les droits admin, les séances multiples, la mise à jour entre onglets, l’annuaire et l’affichage mobile. Installer au préalable les dépendances de développement avec `npm install`, puis le navigateur avec `npx playwright install chromium`. Les captures de vérification sont dans `test-results`.
 
-Le serveur local utilise les modules intégrés de Node : [SQLite](https://nodejs.org/api/sqlite.html) et [crypto](https://nodejs.org/api/crypto.html). La version hébergée utilise les Pages Functions et D1. Un jeton temporaire garde la connexion active dans l’onglet après la saisie du mot de passe.
+Le serveur local utilise les modules intégrés de Node : [SQLite](https://nodejs.org/api/sqlite.html) et [crypto](https://nodejs.org/api/crypto.html). La version hébergée utilise les Pages Functions et D1. Un jeton temporaire conservé dans le navigateur restaure la connexion après rechargement ; sa validité de 12 heures est contrôlée côté serveur.
 
 ## Mise à jour d’un site déjà utilisé
 

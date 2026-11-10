@@ -170,10 +170,12 @@ Toujours conserver des libellés en complément de la couleur.
 ==========================================
 
 4.1 Connexion
-- Toute ouverture ou actualisation du lien demande une connexion.
+- La connexion est conservée 12 heures après identification dans le même navigateur,
+  y compris après rechargement, retour sur le site ou ouverture dans un autre onglet.
 - La navigation interne entre les onglets garde la session active.
-- Le jeton est conservé dans la mémoire de la page, pas comme une connexion
-  persistante permettant de contourner la demande au prochain rechargement.
+- Le jeton est conservé dans localStorage, sans mot de passe ni données de profil.
+  Au démarrage, /api/auth valide la session avant le chargement des données privées.
+  Déconnexion, suppression du profil ou refus 401 effacent le jeton mémorisé.
 - Le serveur donne actuellement des sessions temporaires de 12 heures.
 - L’accès à l’API des données nécessite une session valide.
 - La coque de connexion et les fichiers statiques peuvent être publics ; les
@@ -1768,6 +1770,23 @@ anciennes des volets de séance et de la flèche circulaire du carnet.
 - Vérification : 20 tests réussis dont les conversions et API Pages ; 2 tests
   serveur local et le parcours navigateur bloqués dans cet environnement par
   EPERM sur les ports locaux. Build et contrôle du diff réussis.
+- Commit local, sans push automatique.
+
+30. CONNEXION CONSERVÉE PENDANT 12 HEURES
+---------------------------------------
+- Remplace la règle historique demandant une connexion à chaque rechargement.
+- Jeton mémorisé dans le navigateur ; restauration via /api/auth, puis /api/state.
+  Expiration de 12 heures et révocation toujours contrôlées par le serveur,
+  sans prolongation automatique. Aucun mot de passe enregistré dans le navigateur.
+- Déconnexion et suppression du profil nettoient la mémoire et le stockage ;
+  une session expirée/révoquée est effacée au refus serveur. Une panne réseau
+  n'efface pas la session. Sans stockage disponible, fonctionnement en mémoire.
+- Aucun changement de base ni migration. Cache statique v24.
+- Parcours navigateur adapté : profils dans des contextes isolés, rechargement,
+  retour de visibilité, nouvel onglet et déconnexion suivie d'un rechargement.
+- Validation : build et 20 tests réussis ; démarrage testé en environnement simulé
+  avec session valide/refusée et restauration CSRF. Deux tests serveur et le
+  navigateur bloqués par EPERM sur les ports locaux.
 - Commit local, sans push automatique.
 
 FIN DU CONTEXTE

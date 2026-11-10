@@ -17,10 +17,11 @@ try {
  for(let i=0;i<100;i++){try{await fetch(origin+'/api/auth');break;}catch{}if(i===99)throw new Error(log);await delay(50);}
  browser=await chromium.launch({headless:true});
  const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'fr-FR',timezoneId:'Europe/Paris'});
- await context.addInitScript(()=>{
+ const initClock=()=>{
   const ActualDate=Date;window.Date=class extends ActualDate{constructor(...args){super(...(args.length?args:['2026-09-29T12:00:00+02:00']));}static now(){return +new ActualDate('2026-09-29T12:00:00+02:00');}};
- });
- const newPage=async()=>{const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));return p;};
+ };
+ await context.addInitScript(initClock);
+ const newPage=async()=>{const isolated=await browser.newContext({viewport:{width:1440,height:1100},locale:'fr-FR',timezoneId:'Europe/Paris'});await isolated.addInitScript(initClock);const p=await isolated.newPage();p.on('pageerror',e=>errors.push(e.message));return p;};
  const nav=async(p,hash)=>{await p.locator(`#navigation a[href="#${hash}"]`).click();};
  const admin=await newPage();await admin.goto(origin);
  await expect(admin.locator('.brand-logo')).toBeVisible();
@@ -128,13 +129,13 @@ try {
  await athlete.setViewportSize({width:390,height:844});await athlete.getByRole('button',{name:'☰ Menu'}).click();await nav(athlete,'entrainements');
  await expect(athlete.locator('#navigation')).not.toBeVisible();assert.equal(await athlete.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Pas de défilement horizontal sur mobile');
  await athlete.screenshot({path:join(import.meta.dirname,'test-results/athlete-mobile.png'),fullPage:true});
- await athlete.reload();await expect(athlete.getByRole('button',{name:'Se connecter',exact:true})).toBeVisible();await expect(athlete.locator('#navigation')).toBeHidden();
+ await athlete.reload();await expect(athlete.locator('#daily-sessions')).toBeVisible();await athlete.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await expect(athlete.locator('.account-name')).toContainText('Camille');const restored=await athlete.context().newPage();await restored.goto(origin);await expect(restored.locator('#daily-sessions')).toBeVisible();await restored.close();await athlete.getByRole('button',{name:'Déconnexion',exact:true}).click();await athlete.reload();await expect(athlete.getByRole('button',{name:'Se connecter',exact:true})).toBeVisible();await expect(athlete.locator('#navigation')).toBeHidden();
  await athlete.locator('[name=email]').fill('Camille');await athlete.locator('[name=password]').fill('Camille');await athlete.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(athlete.locator('#auth-error')).toContainText('incorrect');
  await athlete.locator('[name=email]').fill('camille');await athlete.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(athlete.locator('#daily-sessions')).toBeVisible();
  await athlete.getByRole('button',{name:'☰ Menu'}).click();await nav(athlete,'reglages');await athlete.locator('#settings-form [name=email]').fill('coach-test');await athlete.getByRole('button',{name:'Enregistrer mes réglages'}).click();await expect(athlete.locator('#settings-error')).toContainText('déjà utilisé');
  await athlete.locator('#settings-form [name=email]').fill('camille-nouvelle');await athlete.getByRole('button',{name:'Enregistrer mes réglages'}).click();await expect(athlete.locator('.section-head p')).toHaveText('Identifiant : camille-nouvelle');await expect(athlete.locator('#settings-form [name=email]')).toHaveValue('camille-nouvelle');
  await athlete.locator('#password-form [name=password]').fill('A');await athlete.getByRole('button',{name:'Changer mon mot de passe'}).click();await expect(athlete.locator('#toast')).toHaveText('Votre mot de passe a été changé.');await expect(athlete.locator('#password-form [name=password]')).toHaveValue('');
- await athlete.reload();await athlete.locator('#auth-form [name=email]').fill('camille-nouvelle');await athlete.locator('#auth-form [name=password]').fill('a');await athlete.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(athlete.locator('#auth-error')).toContainText('incorrect');await athlete.locator('#auth-form [name=password]').fill('A');await athlete.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(athlete.locator('#daily-sessions')).toBeVisible();await athlete.getByRole('button',{name:'☰ Menu'}).click();await nav(athlete,'reglages');
+ await athlete.getByRole('button',{name:'Déconnexion',exact:true}).click();await athlete.reload();await athlete.locator('#auth-form [name=email]').fill('camille-nouvelle');await athlete.locator('#auth-form [name=password]').fill('a');await athlete.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(athlete.locator('#auth-error')).toContainText('incorrect');await athlete.locator('#auth-form [name=password]').fill('A');await athlete.getByRole('button',{name:'Se connecter',exact:true}).click();await expect(athlete.locator('#daily-sessions')).toBeVisible();await athlete.getByRole('button',{name:'☰ Menu'}).click();await nav(athlete,'reglages');
  await athlete.getByRole('button',{name:'Supprimer mon profil',exact:true}).click();
  await expect(athlete.locator('#editor [name=identifier]')).toHaveCount(0);await athlete.locator('#editor [name=confirm]').check();await athlete.getByRole('button',{name:'Supprimer définitivement mon profil',exact:true}).click();await expect(athlete.getByRole('button',{name:'Se connecter',exact:true})).toBeVisible();
  await expect(admin.getByRole('button',{name:'Supprimer mon profil',exact:true})).toBeDisabled();
